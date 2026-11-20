@@ -166,7 +166,7 @@ async function startHost() {
   }
   function onEmote(e) {
     if (!e) return; const p = H.players[e.u]; if (p) p.em = (p.em || 0) + 1;
-    if (e.m && !H.msgs) return; if (floats.length > 40) floats.shift();
+    if (e.m && !H.msgs) return; if (floats.length >= 45 || (e.m && floats.filter(f => f.msg).length >= 5)) return; // under spam, drop new ones so the ones on screen finish rising
     floats.push({ x: 160 + Math.random() * 1500, born: T, text: e.m ? String(e.m).slice(0, 60) : String(e.e).slice(0, 4), msg: !!e.m, name: p ? p.n : '', wob: Math.random() * 6 });
   }
   net.onPlayers(onPlayer); net.onEmote(onEmote);
