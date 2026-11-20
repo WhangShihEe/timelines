@@ -2494,7 +2494,36 @@ const ORB = [
   'obbbbbbbbbbbbo', 'obbbbbbbbbbbbo', 'obbbbbbbbbbbbo', 'obbbbbbbbbbbso',
   '.obbbbbbbbbso.', '.obbbbbbbbsso.', '..oobbbbssoo..', '....oooooo....' ];
 // cx = centre x, by = y of the ground under its feet, px = size of one pixel
+// Body designs. o ink, b colour, h highlight, s shade, w paper, g grey. ant = antenna pixels [col,row,w,h,ink?]
+const BODIES = [
+  { map: ORB, ant: [[7, -1, 1, 2, 1], [6, -4, 2, 2, 0]] },
+  { map: ['....oooooo....', '..oowwwwwwoo..', '.owwwwwwwwwwo.', '.owwwwwwwwwwo.', 'obbbbbbbbbbbbo', 'obbbbbbbbbbbbo', 'obbbbbbbbbbbbo', 'obbbbbbbbbbbso', '.owwwwwwwwwgo.', '.owwwwwwwwggo.', '..oowwwwggoo..', '....oooooo....'], ant: [[7, -2, 1, 2, 1], [6, -4, 3, 2, 0]] },
+  { map: ['..oooooooooo..', '.obhhbbbbbbbo.', '.obhbbbbbbbbo.', '.obbbbbbbbbbo.', 'oobwwwwwwwwboo', 'ogbwwwwwwwwbgo', 'ogbwwwwwwwwbgo', 'oobwwwwwwwwboo', '.obwwwwwwwwbo.', '.obbbbbbbbbso.', '.obbbbbbbbsso.', '..oooooooooo..'], ant: [[7, -2, 1, 2, 1], [6, -3, 3, 1, 0]] },
+  { map: ['..............', '.oooooooooooo.', 'obbbbbbbbbbbbo', 'obwwwwwwwwwwbo', 'obwwwwwwwwwwbo', 'obwwwwwwwwwwbo', 'obwwwwwwwwwwbo', 'obwwwwwwwwwwbo', 'obwwwwwwwwwwbo', 'obwwwwwwwwwgbo', 'obbbbbbbbbbsso', '.oooooooooooo.'], ant: [[5, 0, 1, 1, 1], [4, -1, 1, 1, 1], [3, -2, 1, 1, 1], [8, 0, 1, 1, 1], [9, -1, 1, 1, 1], [10, -2, 1, 1, 1], [2, -3, 1, 1, 0], [11, -3, 1, 1, 0]] },
+  { map: ['.....oooo.....', '...oobbbboo...', '..obhbbbbbbo..', '..obbbbbbbbo..', '..obbbbbbbbo..', '.oobbbbbbbboo.', 'ogobbbbbbbbogo', '.oobbbbbbbboo.', '..owwwwwwwwo..', '..owwwwwwwgo..', '...oowwggoo...', '.....oooo.....'], ant: [[7, -1, 1, 1, 1], [6, -3, 2, 2, 0]] } ];
+const BODY = 3; // which design everyone wears: 0 orb, 1 dome, 2 boxy, 3 telly, 4 capsule
+const HATS = [null,
+  [[3, 0, 8, 1, '#1A1A1A'], [5, -4, 4, 4, '#1A1A1A'], [5, -1, 4, 1, '#A23F34']],
+  [[4, 0, 6, 1, '#E0B152'], [5, -1, 4, 1, '#945947'], [6, -2, 2, 1, '#E0B152'], [6, -3, 2, 1, '#945947'], [6, -4, 2, 1, '#A23F34']],
+  [[4, -1, 6, 2, '#E0B152'], [4, -2, 1, 1, '#E0B152'], [6, -2, 2, 1, '#E0B152'], [9, -2, 1, 1, '#E0B152'], [6, -1, 2, 1, '#A23F34']],
+  [[3, 0, 8, 1, '#945947'], [4, -1, 6, 1, '#2F6F48'], [5, -2, 4, 1, '#2F6F48'], [6, -3, 2, 1, '#E0B152']],
+  [[5, 0, 4, 1, '#1A1A1A'], [2, -1, 10, 1, '#1A1A1A'], [11, 0, 1, 2, '#E0B152']],
+  [[4, 0, 9, 1, '#52789F'], [4, -1, 6, 1, '#6F94BD'], [5, -2, 4, 1, '#6F94BD']],
+  [[4, -1, 2, 1, '#DE94A8'], [8, -1, 2, 1, '#DE94A8'], [4, -2, 1, 1, '#DE94A8'], [9, -2, 1, 1, '#DE94A8'], [4, 0, 1, 1, '#DE94A8'], [9, 0, 1, 1, '#DE94A8'], [6, -1, 2, 1, '#A23F34']] ];
+const HAT_NAMES = ['No hat', 'Top hat', 'Party hat', 'Crown', 'Beanie', 'Mortarboard', 'Cap', 'Bow'];
+const SPR = new Map();
+// Cached: each distinct critter pose is rendered once, then blitted.
 function drawOrb(g, cx, by, px, o) {
+  o = o || {}; const tq = Math.round((o.tilt || 0) * 2) / 2;
+  if (o.alpha != null || Math.abs(tq) > 1) return drawOrbRaw(g, cx, by, px, o);
+  const hop = Math.round(o.hop || 0), look = clamp(Math.round(o.look || 0), -1, 1), wk = o.walk != null ? Math.floor(o.walk) % 2 : -1;
+  const key = px + '|' + (o.d != null ? o.d : BODY) + '|' + (o.c | 0) + '|' + (o.h | 0) + '|' + (o.face || 'norm') + '|' + look + '|' + tq + '|' + wk + '|' + (o.bulb || '');
+  let sp = SPR.get(key);
+  if (!sp) { sp = document.createElement('canvas'); sp.width = 24 * px; sp.height = 19 * px; drawOrbRaw(sp.getContext('2d'), 12 * px, 18 * px, px, { c: o.c, d: o.d, h: o.h, face: o.face, look, tilt: tq, walk: wk < 0 ? null : wk, noShadow: true, bulb: o.bulb }); SPR.set(key, sp); }
+  if (!o.noShadow) { g.fillStyle = 'rgba(26,26,26,.13)'; const sw = hop ? 8 : 12; g.fillRect(Math.round(cx - sw * px / 2), Math.round(by), sw * px, px); }
+  g.drawImage(sp, Math.round(cx) - 12 * px, Math.round(by) - 18 * px - hop * px);
+}
+function drawOrbRaw(g, cx, by, px, o) {
   o = o || {};
   const pal = PAL[(o.c | 0) % PAL.length], hop = Math.round(o.hop || 0), tilt = o.tilt || 0;
   const look = clamp(Math.round(o.look || 0), -1, 1), face = o.face || 'norm', E = C.ink;
@@ -2502,10 +2531,11 @@ function drawOrb(g, cx, by, px, o) {
   const P = (c, r, w, h, col) => { g.fillStyle = col; g.fillRect(x0 + (c + Math.round(tilt * (12 - r) / 4)) * px, yb - (12 - r) * px, w * px, h * px); };
   if (o.alpha != null) g.globalAlpha = o.alpha;
   if (!o.noShadow) { g.fillStyle = 'rgba(26,26,26,.13)'; const sw = hop ? 8 : 12; g.fillRect(Math.round(cx - sw * px / 2), Math.round(by), sw * px, px); }
-  for (let r = 0; r < 12; r++) { const row = ORB[r]; let c = 0; while (c < 14) { const ch = row[c]; if (ch === '.') { c++; continue; } let e = c; while (e < 14 && row[e] === ch) e++; P(c, r, e - c, 1, ch === 'o' ? E : ch === 'b' ? pal.b : ch === 'h' ? pal.h : pal.s); c = e; } }
+  const BD = BODIES[(o.d != null ? o.d : BODY) % BODIES.length];
+  for (let r = 0; r < 12; r++) { const row = BD.map[r]; let c = 0; while (c < 14) { const ch = row[c]; if (ch === '.') { c++; continue; } let e = c; while (e < 14 && row[e] === ch) e++; P(c, r, e - c, 1, ch === 'o' ? E : ch === 'b' ? pal.b : ch === 'h' ? pal.h : ch === 'w' ? C.paper : ch === 'g' ? C.light : pal.s); c = e; } }
   const wk = o.walk != null ? Math.floor(o.walk) % 2 : -1;
   if (wk !== 0) P(3, 12, 2, 1, E); if (wk !== 1) P(9, 12, 2, 1, E);
-  P(7, -1, 1, 1, E); P(7, -2, 1, 1, E); P(6, -4, 2, 2, o.bulb || E);
+  if (HATS[o.h | 0]) { for (const q of HATS[o.h | 0]) P(q[0], q[1], q[2], q[3], q[4]); } else for (const q of BD.ant) P(q[0], q[1], q[2], q[3], q[4] ? E : o.bulb || C.gold);
   if (face === 'blink' || face === 'sleepy') { P(3, 6, 3, 1, E); P(8, 6, 3, 1, E); }
   else if (face === 'happy') { for (const b of [3, 8]) { P(b, 6, 1, 1, E); P(b + 1, 5, 1, 1, E); P(b + 2, 6, 1, 1, E); } }
   else if (face === 'dizzy') { for (const b of [3, 8]) { P(b, 5, 1, 1, E); P(b + 2, 5, 1, 1, E); P(b + 1, 6, 1, 1, E); P(b, 7, 1, 1, E); P(b + 2, 7, 1, 1, E); } }
@@ -2527,6 +2557,7 @@ function drawFx(g, cx, by, px, kind, T) {
   if (kind === 'q') { g.fillStyle = C.ink; g.font = `700 ${px * 4}px ${MONO}`; g.textAlign = 'center'; g.fillText('?', cx, top - 5 * px + Math.sin(T * 4) * px); }
 }
 
+window.__pix = { drawOrb };
 /* ================= BIG SCREEN ================= */
 async function startHost() {
   document.body.className = 'host';
@@ -2541,7 +2572,7 @@ async function startHost() {
   const qr = qrcode(0, 'M'); qr.addData(joinUrl); qr.make(); const QN = qr.getModuleCount();
 
   const cv = document.createElement('canvas'); cv.id = 'stage'; document.body.append(cv); const g = cv.getContext('2d');
-  const fit = () => { const d = Math.min(2, devicePixelRatio || 1); cv.width = innerWidth * d; cv.height = innerHeight * d; }; fit(); addEventListener('resize', fit);
+  const fit = () => { const d = Math.min(2, devicePixelRatio || 1, 2560 / innerWidth); cv.width = innerWidth * d; cv.height = innerHeight * d; }; fit(); addEventListener('resize', fit);
 
   const vals = k => Object.values(H.players).map(p => p.v[k]).filter(v => v != null);
   const count = () => Object.keys(H.players).length;
@@ -2551,8 +2582,8 @@ async function startHost() {
   function onPlayer(u, p) {
     if (!p || !p.n) return;
     let q = H.players[u];
-    if (!q) { q = H.players[u] = { n: '', c: 0, v: {}, mv: {}, em: 0, j: count() }; if (H.phase === 0 && T > 1) say('Welcome, ' + String(p.n).slice(0, 14) + '!', 'happy', 3); }
-    q.n = String(p.n).slice(0, 14); q.c = p.c | 0;
+    if (!q) { q = H.players[u] = { n: '', c: 0, h: 0, v: {}, mv: {}, em: 0, j: count() }; if (H.phase === 0 && T > 1) say('Welcome, ' + String(p.n).slice(0, 14) + '!', 'happy', 3); }
+    q.n = String(p.n).slice(0, 14); q.c = p.c | 0; if (p.h != null) q.h = p.h | 0;
     const nv = p.v || {}, cur = PH[H.phase];
     for (const k in nv) { const v = +nv[k]; if (!isFinite(v)) continue;
       if (q.v[k] !== v) { const d = D(u); d.dir = Math.sign(v - (q.v[k] == null ? v : q.v[k])); d.moved = T; if (q.v[k] != null && k === cur) q.mv[k] = (q.mv[k] || 0) + Math.abs(v - q.v[k]); }
@@ -2560,7 +2591,7 @@ async function startHost() {
   }
   function onEmote(e) {
     if (!e) return; const p = H.players[e.u]; if (p) p.em = (p.em || 0) + 1;
-    if (e.m && !H.msgs) return; if (floats.length > 60) floats.shift();
+    if (e.m && !H.msgs) return; if (floats.length > 40) floats.shift();
     floats.push({ x: 160 + Math.random() * 1500, born: T, text: e.m ? String(e.m).slice(0, 60) : String(e.e).slice(0, 4), msg: !!e.m, name: p ? p.n : '', wob: Math.random() * 6 });
   }
   net.onPlayers(onPlayer); net.onEmote(onEmote);
@@ -2592,7 +2623,7 @@ async function startHost() {
 
   /* ----- demo audience ----- */
   const BN = ['Punter','Porter','Bedder','Fresher','Proctor','Tripos','Supo','Bop','Formal','Mathmo','NatSci','CompSci','Rower','Cox','Blade','Gyp','Plodge','Backs','Granta','Mill','Fitz','Girton','Bridge','Bumps','Gown','Don','Fellow','Scholar','Punt','Swan'];
-  function addBots(n) { for (let i = 0; i < n; i++) { const u = 'bot' + rid(5), b = { u, bias: (Math.random() + Math.random() + Math.random() - 1.5) / 1.5, v: {} }; bots.push(b); onPlayer(u, { n: BN[(bots.length - 1) % BN.length], c: Math.random() * 8 | 0, v: {} }); } }
+  function addBots(n) { for (let i = 0; i < n; i++) { const u = 'bot' + rid(5), b = { u, bias: (Math.random() + Math.random() + Math.random() - 1.5) / 1.5, v: {} }; bots.push(b); onPlayer(u, { n: BN[(bots.length - 1) % BN.length], c: Math.random() * 8 | 0, h: Math.random() * 8 | 0, v: {} }); } }
   setInterval(() => {
     const r = roundAt(H.phase);
     for (const b of bots) {
@@ -2645,16 +2676,15 @@ async function startHost() {
     if (m === 'dizzy') drawFx(g, cx, by, px, 'sweat', T); if (m === 'happy') drawFx(g, cx, by, px, 'spark', T);
     if (bubble && T < bubble.until) { const s = side || (cx > 1100 ? 'l' : 'r'); speech(bubble.t, cx + (s === 'l' ? -8 * px : 8 * px), by - 9 * px, s); }
   }
-  function crowd(key, x0, x1, gy, px, max, names, only) {
+  function crowd(key, x0, x1, gy, px, max, LM) {
     const ids = Object.keys(H.players).filter(u => H.players[u].v[key] != null).sort((a, b) => H.players[a].j - H.players[b].j);
     const cell = 15 * px, placed = [];
     for (const u of ids) { const p = H.players[u], d = D(u), tgt = x0 + (x1 - x0) * p.v[key] / max;
       if (d.x[key] == null) d.x[key] = tgt; d.x[key] += (tgt - d.x[key]) * Math.min(1, dt * 9);
-      let L = 0; while (placed.some(q => q.L === L && Math.abs(q.x - d.x[key]) < cell)) L++; placed.push({ x: d.x[key], L });
+      let L = 0, best = 0, bd = -1; for (; L < LM; L++) { let md = 1e9; for (const q of placed) if (q.L === L) { const dd = Math.abs(q.x - d.x[key]); if (dd < md) md = dd; } if (md >= cell) break; if (md > bd) { bd = md; best = L; } } if (L === LM) L = best; placed.push({ x: d.x[key], L });
       d.l = d.l == null ? L : d.l + (L - d.l) * Math.min(1, dt * 9);
       const mv = T - d.moved < .7, y = gy - d.l * 13 * px;
-      drawOrb(g, d.x[key], y, px, { c: p.c, hop: mv ? Math.abs(Math.sin(T * 16 + d.ph)) * 1.6 : 0, look: mv ? d.dir : 0, tilt: mv ? d.dir * .7 : 0, face: mv ? 'wide' : ((T + d.ph * 2) % 4.3) < .13 ? 'blink' : 'norm', noShadow: d.l > .3 });
-      if (names && d.l < .5) { g.font = `700 14px ${MONO}`; g.textAlign = 'center'; g.lineWidth = 4; g.strokeStyle = C.paper; g.strokeText(p.n, d.x[key], gy + 26 + (placed.length % 2) * 0); }
+      drawOrb(g, d.x[key], y, px, { c: p.c, h: p.h, hop: mv ? Math.abs(Math.sin(T * 16 + d.ph)) * 1.6 : 0, look: mv ? d.dir : 0, tilt: mv ? d.dir * .7 : 0, face: mv ? 'wide' : ((T + d.ph * 2) % 4.3) < .13 ? 'blink' : 'norm', noShadow: d.l > .3 });
     }
     return ids.length;
   }
@@ -2691,8 +2721,8 @@ async function startHost() {
     const ids = Object.keys(H.players).sort((a, b) => H.players[a].j - H.players[b].j), px = ids.length > 30 ? 4 : 5;
     for (const u of ids) { const p = H.players[u], d = D(u); if (T > d.wn) { d.wt = Math.random(); d.wn = T + 2 + Math.random() * 5; }
       const dx = d.wt - d.wx, walking = Math.abs(dx) > .004; if (walking) d.wx += Math.sign(dx) * dt * .035; const age = T - d.born, x = 80 + d.wx * 1760;
-      drawOrb(g, x, gy, px, { c: p.c, walk: walking ? T * 7 + d.ph : null, look: walking ? Math.sign(dx) : 0, hop: age < .8 ? Math.abs(Math.sin(age * 12)) * 4 : 0, face: age < 1.2 ? 'happy' : ((T + d.ph * 2) % 4.3) < .13 ? 'blink' : 'norm' });
-      tx(p.n, x, gy - 17 * px - 6 - (p.j % 3) * 19, { a: 'center', w: 700, s: 15 }); }
+      drawOrb(g, x, gy, px, { c: p.c, h: p.h, walk: walking ? T * 7 + d.ph : null, look: walking ? Math.sign(dx) : 0, hop: age < .8 ? Math.abs(Math.sin(age * 12)) * 4 : 0, face: age < 1.2 ? 'happy' : ((T + d.ph * 2) % 4.3) < .13 ? 'blink' : 'norm' });
+      tx(p.n, x, gy - 18 * px - 6 - (p.j % 3) * 19, { a: 'center', w: 700, s: 15 }); }
     if (!ids.length) tx('be the first one in →', 1300, gy - 30, { a: 'right', s: 24, c: C.mid });
     for (let r = 0; r < 4; r++) { g.fillStyle = r % 2 ? C.light : C.camE; const off = (T * (18 + r * 9) * (r % 2 ? -1 : 1)) % 120; for (let x = -120; x < 2040; x += 120) g.fillRect(x + off + r * 37, 925 + r * 40, 44, 5); }
     const bx = ((T * 55) % 2500) - 400, by = 990 + Math.round(Math.sin(T * 2) * 3);
@@ -2702,12 +2732,12 @@ async function startHost() {
   }
   function sceneWhen(r) {
     header(r); qrPanel();
-    const X0 = 150, X1 = 1770, GY = 740, xv = v => X0 + (X1 - X0) * v / WMAX, a = vals(r.key), n = a.length, px = n <= 16 ? 5 : n <= 38 ? 4 : 3;
+    const X0 = 150, X1 = 1770, GY = 740, xv = v => X0 + (X1 - X0) * v / WMAX, a = vals(r.key), n = a.length, px = n <= 16 ? 5 : n <= 34 ? 4 : 3;
     for (let y = 0; y < 8; y += 2) { g.fillStyle = 'rgba(148,89,71,.05)'; g.fillRect(xv(y * 12), 380, xv(12) - xv(0), GY - 380); }
     let med = null, q1, q3;
     if (n) { med = quant(a, .5); q1 = quant(a, .25); q3 = quant(a, .75); sm[r.key] = sm[r.key] == null ? med : sm[r.key] + (med - sm[r.key]) * Math.min(1, dt * 5);
       g.fillStyle = C.camE; for (let y = 380; y < GY + 110; y += 22) g.fillRect(xv(sm[r.key]) - 3, y, 6, 12); }
-    crowd(r.key, X0, X1, GY, px, WMAX, false);
+    crowd(r.key, X0, X1, GY, px, WMAX, Math.floor(350 / (13 * px)));
     g.fillStyle = C.ink; g.fillRect(X0 - 50, GY, X1 - X0 + 100, 5);
     for (let y = 0; y <= 8; y++) { const x = xv(y * 12); g.fillStyle = C.ink; g.fillRect(x - 2, GY, 4, 20); tx(y === 8 ? '2035+' : String(2027 + y), x, GY + 52, { a: 'center', w: 700, s: 24 }); if (y < 8) for (let q = 1; q < 4; q++) g.fillRect(xv(y * 12 + q * 3) - 1, GY, 2, 10); }
     if (n) { g.fillStyle = C.cam; g.fillRect(xv(q1), GY - 2, xv(q3) - xv(q1), 9); }
@@ -2744,7 +2774,7 @@ async function startHost() {
     graph(940, 384, 630, 372, r.key, { max: 100, band: true, marks: true, mid: true, minT: 90 });
     const X0 = 150, X1 = 1770, GY = 1030; g.fillStyle = C.ink; g.fillRect(X0 - 50, GY, X1 - X0 + 100, 5); g.fillRect((X0 + X1) / 2 - 2, GY, 4, 16);
     g.fillStyle = C.green; g.fillRect(X0 - 50, GY + 5, 60, 8); g.fillStyle = C.cam; g.fillRect(X1 - 10, GY + 5, 60, 8);
-    crowd(r.key, X0, X1, GY, 3, 100, false);
+    crowd(r.key, X0, X1, GY, 3, 100, 4);
     if (count() - n > 0) tx((count() - n) + ' still thinking', 1840, 1066, { a: 'right', s: 16, c: C.mid });
     // the area right of the graph: who's talking + marks legend
     card(1640, 370, 244, 430, C.paper, 6); tx('HOST KEYS', 1662, 408, { s: 14, w: 700, ls: 2, c: C.dark });
@@ -2763,8 +2793,8 @@ async function startHost() {
       if (before) { const lab = k < .5 ? 'BEFORE' : 'AFTER'; g.fillStyle = k < .5 ? C.dark : C.cam; g.fillRect(790, 222, 160, 40); tx(lab, 870, 250, { a: 'center', w: 700, s: 20, ls: 3, c: '#fff' }); }
       g.fillStyle = C.ink; g.fillRect(X0 - 30, GY, X1 - X0 + 60, 4); for (let y = 0; y <= 8; y++) { g.fillRect(xv(y * 12) - 1, GY, 3, 12); tx(y === 8 ? "'35+" : "'" + (27 + y), xv(y * 12), GY + 36, { a: 'center', s: 17, w: 700 }); }
       const ps = Object.values(H.players).filter(p => p.v[ka] != null || p.v[kb] != null).sort((a, b) => a.j - b.j), placed = [];
-      for (const p of ps) { const b = p.v[kb] != null ? p.v[kb] : p.v[ka], a2 = p.v[ka] != null ? p.v[ka] : p.v[kb], x = xv(lerp(b, a2, k)); let L = 0; while (placed.some(q => q.L === L && Math.abs(q.x - x) < 44)) L++; placed.push({ x, L });
-        const mv = k > 0 && k < 1 && b !== a2; drawOrb(g, x, GY - L * 37, 3, { c: p.c, hop: mv ? Math.abs(Math.sin(T * 14 + p.j)) * 2 : 0, look: mv ? Math.sign(a2 - b) : 0, face: mv ? 'wide' : 'norm', noShadow: L > 0 }); }
+      for (const p of ps) { const b = p.v[kb] != null ? p.v[kb] : p.v[ka], a2 = p.v[ka] != null ? p.v[ka] : p.v[kb], x = xv(lerp(b, a2, k)); let L = 0; while (L < 8 && placed.some(q => q.L === L && Math.abs(q.x - x) < 44)) L++; placed.push({ x, L });
+        const mv = k > 0 && k < 1 && b !== a2; drawOrb(g, x, GY - L * 37, 3, { c: p.c, h: p.h, hop: mv ? Math.abs(Math.sin(T * 14 + p.j)) * 2 : 0, look: mv ? Math.sign(a2 - b) : 0, face: mv ? 'wide' : 'norm', noShadow: L > 0 }); }
       const vb = vals(kb), va = vals(ka);
       if (vb.length && va.length) { const mb = quant(vb, .5), ma = quant(va, .5), d = Math.round(ma - mb);
         if (before) { g.fillStyle = C.mid; g.fillRect(xv(mb) - 2, GY + 44, 4, 26); g.fillStyle = C.cam; g.fillRect(xv(lerp(mb, ma, k)) - 4, GY + 44, 8, 26); }
@@ -2787,22 +2817,24 @@ async function startHost() {
     const aw = [['FLIP-FLOPPER', flip, flip && Math.round(mvOf(flip)) + ' points of sliding', 'wide'], ['THE ROCK', rock && rock !== flip ? rock : null, rock && Math.round(mvOf(rock)) + ' points. Immovable.', 'sleepy'],
       ['BIGGEST RETHINK', mind && mind.v[after.key] !== mind.v[before.key] ? mind : null, mind && Math.abs(mind.v[after.key] - mind.v[before.key]) + ' months ' + (mind.v[after.key] > mind.v[before.key] ? 'later' : 'sooner'), 'dizzy'], ['HYPE MACHINE', hype, hype && hype.em + ' emotes', 'happy']];
     aw.forEach((w, i) => { const x = 80 + i * 445, y = 830; card(x, y, 425, 200, C.paper); tx(w[0], x + 150, y + 52, { s: 16, w: 700, ls: 2, c: C.cam });
-      if (w[1]) { drawOrb(g, x + 78, y + 160, 6, { c: w[1].c, face: w[3], hop: Math.abs(Math.sin(T * 5 + i)) * 1.5 }); tx(w[1].n, x + 150, y + 108, { f: SERIF, s: 36 }); tx(w[2], x + 150, y + 146, { s: 16, c: C.dark }); }
+      if (w[1]) { drawOrb(g, x + 78, y + 160, 6, { c: w[1].c, h: w[1].h, face: w[3], hop: Math.abs(Math.sin(T * 5 + i)) * 1.5 }); tx(w[1].n, x + 150, y + 108, { f: SERIF, s: 36 }); tx(w[2], x + 150, y + 146, { s: 16, c: C.dark }); }
       else { drawOrb(g, x + 78, y + 160, 6, { c: 7, face: 'sleepy', alpha: .4 }); tx('nobody yet', x + 150, y + 108, { f: SERIF, s: 30, c: C.mid }); } });
   }
 
+  const bgc = document.createElement('canvas'); bgc.width = 1920; bgc.height = 1080; { const b = bgc.getContext('2d'); b.fillStyle = C.paper; b.fillRect(0, 0, 1920, 1080); b.fillStyle = C.light; for (let y = 30; y < 1080; y += 60) for (let x = 30; x < 1920; x += 60) b.fillRect(x, y, 3, 3); }
+  const EMO = new Map(), emo = t => { let c = EMO.get(t); if (!c) { c = document.createElement('canvas'); c.width = c.height = 96; const x = c.getContext('2d'); x.font = '64px serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(t, 48, 52); EMO.set(t, c); } return c; };
   function frame(ts) {
     const nt = ts / 1000; dt = Math.min(.05, nt - T || .016); T = nt;
     g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = C.paper; g.fillRect(0, 0, cv.width, cv.height);
     const s = Math.min(cv.width / 1920, cv.height / 1080); g.setTransform(s, 0, 0, s, (cv.width - 1920 * s) / 2, (cv.height - 1080 * s) / 2);
-    g.fillStyle = C.light; for (let y = 30; y < 1080; y += 60) for (let x = 30; x < 1920; x += 60) g.fillRect(x, y, 3, 3);
+    g.drawImage(bgc, 0, 0);
     const r = roundAt(H.phase);
     if (H.phase === 0) lobby(); else if (!r) summary(); else if (r.type === 'when') sceneWhen(r); else sceneLean(r);
     for (let i = floats.length - 1; i >= 0; i--) { const f = floats[i], age = T - f.born, life = f.msg ? 7 : 4.5; if (age > life) { floats.splice(i, 1); continue; }
       const k = age / life, y = 1100 - k * 900, x = f.x + Math.sin(age * 2 + f.wob) * 40; g.globalAlpha = k > .8 ? (1 - k) * 5 : 1;
       if (f.msg) { g.font = `700 26px ${MONO}`; const w = Math.max(g.measureText(f.text).width, 80) + 32; g.fillStyle = C.ink; g.fillRect(x + 6, y + 6, w, 76); g.fillStyle = C.paper; g.fillRect(x, y, w, 76); g.strokeStyle = C.ink; g.lineWidth = 3; g.strokeRect(x + 1.5, y + 1.5, w - 3, 73);
         tx(f.name.toUpperCase(), x + 16, y + 26, { s: 14, w: 700, ls: 1, c: C.cam }); tx(f.text, x + 16, y + 58, { s: 26, w: 700 }); }
-      else { g.font = '64px serif'; g.textAlign = 'center'; g.fillStyle = C.ink; g.fillText(f.text, x, y); }
+      else g.drawImage(emo(f.text), x - 48, y - 70);
       g.globalAlpha = 1; }
     if (H.bigQR) { g.fillStyle = 'rgba(251,251,250,.94)'; g.fillRect(0, 0, 1920, 1080); card(560, 90, 800, 900, C.paper, 14); drawQR(600, 120, 720); tx('ROOM ' + room, 960, 900, { a: 'center', w: 700, s: 52, ls: 10 }); tx(showUrl, 960, 950, { a: 'center', s: 22, c: C.dark }); }
     const tp = (T - trans) / .7; if (tp < 1) { g.fillStyle = C.cam; for (let j = 0; j < 18; j++) for (let i = 0; i < 32; i++) { const rnd = ((i * 73 + j * 151) % 97) / 97; if (rnd * .55 + i / 32 * .45 > tp) g.fillRect(i * 60, j * 60, 61, 61); } }
@@ -2846,7 +2878,7 @@ async function startPhone() {
       g.fillStyle = C.ink; g.fillRect(0, gy, w, 3); for (let x = 12; x < w; x += 61) { g.fillRect(x, gy - 7, 2, 7); g.fillRect(x + 5, gy - 11, 2, 11); }
       for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.t += .016; p.vy += 9; p.x += p.vx * .016; p.y += p.vy * .016; if (p.t > .7) { parts.splice(i, 1); continue; } g.fillStyle = p.c; g.fillRect(Math.round(p.x / 4) * 4, Math.round(p.y / 4) * 4, 6, 6); }
       const moving = T - mv < .35, shake = s.shake ? Math.round(Math.sin(T * 40)) * 2 : 0;
-      drawOrb(g, dx + shake, gy, 7, { c: me.c, face: moving && !s.lock ? 'wide' : s.face || ((T % 3.4) < .12 ? 'blink' : 'norm'), look: moving ? dir : 0, tilt: (s.tilt || 0) + (moving ? dir * .8 : 0), hop: moving ? Math.abs(Math.sin(T * 20)) * 2 : s.bounce ? Math.abs(Math.sin(T * 5)) * 2 : 0, walk: moving ? T * 14 : null });
+      drawOrb(g, dx + shake, gy, 7, { c: me.c, h: me.h, face: moving && !s.lock ? 'wide' : s.face || ((T % 3.4) < .12 ? 'blink' : 'norm'), look: moving ? dir : 0, tilt: (s.tilt || 0) + (moving ? dir * .8 : 0), hop: moving ? Math.abs(Math.sin(T * 20)) * 2 : s.bounce ? Math.abs(Math.sin(T * 5)) * 2 : 0, walk: moving ? T * 14 : null });
       if (s.fx) drawFx(g, dx + shake, gy, 7, s.fx, T);
       raf = requestAnimationFrame(f); };
     raf = requestAnimationFrame(f); return { can, stop: () => cancelAnimationFrame(raf) };
@@ -2906,7 +2938,7 @@ async function startPhone() {
   msgIn.addEventListener('keydown', e => { if (e.key === 'Enter') sendMsg(); });
   const msgRow = el('div', { class: 'msg' }, msgIn, el('button', { class: 'btn', onclick: sendMsg }, 'Send'));
   function play() {
-    net.setPlayer(me.uid, { n: me.n, c: me.c }); for (const k in me.v) net.setVote(me.uid, k, me.v[k]);
+    net.setPlayer(me.uid, { n: me.n, c: me.c, h: me.h | 0 }); for (const k in me.v) net.setVote(me.uid, k, me.v[k]);
     const emo = el('div', { class: 'emo' }, CONFIG.emotes.map(e => el('button', { onclick: ev => { const n = Date.now(); if (n - lastEm < 350) return; lastEm = n; net.sendEmote({ u: me.uid, e });
       const b = ev.currentTarget.getBoundingClientRect(), f = el('div', { class: 'fly' }, e); f.style.left = b.left + b.width / 2 - 15 + 'px'; f.style.top = b.top - 10 + 'px'; document.body.append(f); setTimeout(() => f.remove(), 900); } }, e)));
     emoBox.append(emo, msgRow);
@@ -2915,12 +2947,12 @@ async function startPhone() {
   }
   if (me && me.n) return play();
   let c = Math.random() * 8 | 0; const nameIn = el('input', { class: 'inp', maxlength: 14, placeholder: 'Your nickname', autocomplete: 'off' });
-  me = { c }; const oc = orbCanvas(() => ({ f: .5, bounce: true, face: 'happy' }));
-  const join = () => { const n = nameIn.value.trim().slice(0, 14); if (!n) { nameIn.focus(); return; } oc.stop(); me = { uid: rid(10, 'abcdefghijkmnpqrstuvwxyz23456789'), n, c: me.c, v: {}, first: {} }; saveMe(); play(); };
+  me = { c, h: Math.random() * 8 | 0 }; const hatB = el('button', { class: 'btn', style: 'flex:1', onclick: () => { me.h = (me.h + 1) % 8; hatB.textContent = 'Hat: ' + HAT_NAMES[me.h]; } }, 'Hat: ' + HAT_NAMES[me.h]); const oc = orbCanvas(() => ({ f: .5, bounce: true, face: 'happy' }));
+  const join = () => { const n = nameIn.value.trim().slice(0, 14); if (!n) { nameIn.focus(); return; } oc.stop(); me = { uid: rid(10, 'abcdefghijkmnpqrstuvwxyz23456789'), n, c: me.c, h: me.h, v: {}, first: {} }; saveMe(); play(); };
   nameIn.addEventListener('keydown', e => { if (e.key === 'Enter') join(); });
   root.append(el('div', { class: 'top' }, el('span', {}, CONFIG.org), el('span', {}, 'Room ' + room)),
     el('div', { class: 'card' }, el('div', { class: 'q', style: 'font-size:30px' }, richDom(CONFIG.eventName)), oc.can,
-      el('button', { class: 'btn', onclick: () => { me.c = (me.c + 1) % 8; } }, 'Change colour'), nameIn, el('button', { class: 'btn pri', onclick: join }, 'Join the room'), el('p', { class: 'note' }, 'Your nickname shows on the big screen.')));
+      el('div', { style: 'display:flex;gap:8px' }, el('button', { class: 'btn', style: 'flex:1', onclick: () => { me.c = (me.c + 1) % 8; } }, 'Colour'), hatB), nameIn, el('button', { class: 'btn pri', onclick: join }, 'Join the room'), el('p', { class: 'note' }, 'Your nickname shows on the big screen.')));
 }
 
 (qs.has('host') ? startHost() : startPhone()).catch(e => { document.body.append(el('pre', { style: 'padding:20px;white-space:pre-wrap' }, 'Could not start: ' + e.message)); });
