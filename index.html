@@ -1,0 +1,2931 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Timelines: live room pulse</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#FBFBFA;--cream:#F5F5F3;--ink:#1A1A1A;--dark:#4A4A4A;--mid:#8A8A8A;--light:#E2E2DF;--cam:#945947;--camL:#B1715B;--camE:#D29A84;--clay:#7E4233;--green:#2F6F48}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--paper);color:var(--ink);font-family:"Space Mono",ui-monospace,Menlo,monospace;overscroll-behavior:none}
+button,input{font:inherit;color:inherit}
+em{font-style:italic;color:var(--cam)}
+
+/* ---------- big screen ---------- */
+body.host{overflow:hidden}
+#stage{position:fixed;inset:0;width:100vw;height:100vh;display:block}
+#bar{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:6px;padding:8px;background:var(--paper);border:2px solid var(--ink);box-shadow:4px 4px 0 var(--ink);transition:opacity .3s;font-size:12px;white-space:nowrap}
+#bar.hide{opacity:0;pointer-events:none}
+#bar button{border:2px solid var(--ink);background:var(--cream);padding:6px 10px;cursor:pointer}
+#bar button:hover{background:var(--camE)}
+#bar button.pri{background:var(--cam);color:#fff}
+#bar kbd{opacity:.6;font-size:10px;margin-left:4px}
+
+/* ---------- phone ---------- */
+body.phone{user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.ph{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;padding:14px 16px calc(12px + env(safe-area-inset-bottom));gap:12px;max-width:520px;margin:0 auto}
+.top{display:flex;justify-content:space-between;align-items:center;font-size:11px;letter-spacing:.15em;font-weight:700;color:var(--cam);text-transform:uppercase}
+.top .dot{display:inline-block;width:8px;height:8px;background:var(--green);margin-right:6px}
+.top .dot.off{background:#A23F34}
+.card{flex:1;display:flex;flex-direction:column;border:3px solid var(--ink);background:var(--cream);box-shadow:6px 6px 0 var(--ink);padding:16px;gap:10px;position:relative;overflow:hidden;animation:pop .35s steps(5)}
+@keyframes pop{from{transform:translateY(18px);opacity:0}to{transform:none;opacity:1}}
+.eyebrow{font-size:11px;letter-spacing:.15em;text-transform:uppercase;font-weight:700;color:var(--dark)}
+.q{font-family:"Libre Baskerville",Georgia,serif;font-size:23px;line-height:1.18;letter-spacing:-.02em}
+.big{font-family:"Libre Baskerville",Georgia,serif;font-size:42px;text-align:center;letter-spacing:-.02em;line-height:1.1;margin-top:auto}
+.big.bump{animation:bump .18s steps(3)}
+@keyframes bump{50%{transform:scale(1.14)}}
+.flav{text-align:center;font-size:13px;color:var(--dark);min-height:1.5em}
+.pcan{width:100%;height:150px;display:block;image-rendering:pixelated}
+.sl{position:relative;height:68px;touch-action:none;margin:0 20px;cursor:grab}
+.sl .track{position:absolute;left:-20px;right:-20px;top:20px;height:28px;border:3px solid var(--ink);background:var(--paper);overflow:hidden}
+.sl .fill{position:absolute;inset:0}
+.sl.lean .fill{background:linear-gradient(90deg,var(--green) 0%,var(--paper) 50%,var(--cam) 100%)}
+.sl.when .fill{background:linear-gradient(90deg,#A23F34 0%,var(--camE) 35%,var(--paper) 100%)}
+.sl .knob{position:absolute;top:4px;width:40px;height:60px;margin-left:-20px;background:var(--cam);border:3px solid var(--ink);box-shadow:3px 3px 0 var(--ink);display:flex;align-items:center;justify-content:center;gap:4px}
+.sl .knob i{width:3px;height:22px;background:var(--paper)}
+.sl.unset .knob{background:var(--light);animation:nudge 1s steps(4) infinite}
+@keyframes nudge{50%{transform:translateX(8px)}}
+.sl .was{position:absolute;top:10px;width:3px;height:48px;margin-left:-1px;background:var(--ink);opacity:.35}
+.ticks{display:flex;justify-content:space-between;font-size:10px;color:var(--dark);margin:-4px 0 0}
+.ends{display:flex;justify-content:space-between;font-size:12px;font-weight:700;gap:12px}
+.ends span:first-child{color:var(--green)}
+.ends span:last-child{color:var(--cam);text-align:right}
+.nudge{display:flex;gap:10px;justify-content:center}
+.btn{border:3px solid var(--ink);background:var(--paper);box-shadow:3px 3px 0 var(--ink);padding:10px 16px;font-weight:700;cursor:pointer}
+.btn:active{transform:translate(3px,3px);box-shadow:none}
+.btn.pri{background:var(--cam);color:#fff;font-size:18px;padding:14px}
+.inp{border:3px solid var(--ink);background:var(--paper);padding:12px;font-size:18px;width:100%;outline:none;user-select:text;-webkit-user-select:text}
+.emo{display:flex;gap:6px}
+.emo button{flex:1;border:3px solid var(--ink);background:var(--paper);box-shadow:3px 3px 0 var(--ink);font-size:22px;padding:8px 0;cursor:pointer;position:relative}
+.emo button:active{transform:translate(3px,3px);box-shadow:none}
+.msg{display:flex;gap:6px}
+.msg .inp{font-size:15px;padding:9px}
+.fly{position:fixed;font-size:30px;pointer-events:none;animation:fly .9s ease-out forwards;z-index:9}
+@keyframes fly{to{transform:translateY(-240px) rotate(20deg);opacity:0}}
+.recap{display:flex;flex-direction:column;gap:8px;font-size:13px}
+.recap div{border-top:2px solid var(--light);padding-top:8px}
+.recap b{display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dark)}
+.center{align-items:center;justify-content:center;text-align:center}
+.note{font-size:12px;color:var(--dark);line-height:1.6}
+
+</style>
+</head>
+<body>
+<script>
+/* ============================================================
+   EDIT ME
+   1. Paste your Firebase web config into `firebase` to go live.
+      Leave it null and the page runs in DEMO MODE (works across
+      tabs of one browser only, handy for rehearsing).
+   2. Change the rounds: wording, order, add or remove debates.
+      Wrap a word in *asterisks* to set it in the italic accent.
+   ============================================================ */
+const CONFIG = {
+  eventName: 'Timelines to *Advanced AI*',
+  org: 'CAMBRIDGE AI SAFETY HUB',
+
+  firebase: {
+    apiKey: "AIzaSyBK4D0QkadAzLrpivlBCkckDAlMxg7sUPo",
+    databaseURL: "https://caish-social-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "caish-social"
+  },
+  /* firebase: {
+       apiKey: "...",
+       databaseURL: "https://YOUR-PROJECT-default-rtdb.europe-west1.firebasedatabase.app",
+       projectId: "..."
+     }, */
+
+  rounds: [
+    { key: 't1', type: 'when', title: 'Opening forecast',
+      q: 'When will we get *superintelligence*?' },
+
+    { key: 'd1', type: 'lean', title: 'Debate 1 · Research taste',
+      q: 'AI will match top human *research taste* within three years',
+      left: 'Not a chance', right: 'It will' },
+
+    { key: 'd2', type: 'lean', title: 'Debate 2 · Diminishing returns',
+      q: 'AI improving AI will *snowball*, not stall',
+      left: 'It stalls', right: 'It snowballs' },
+
+    { key: 'd3', type: 'lean', title: 'Debate 3 · Generalisation',
+      q: 'Benchmark gains will carry over to *messy real-world* work',
+      left: 'Goodharted', right: 'It generalises' },
+
+    { key: 't2', type: 'when', title: 'Final forecast', compare: 't1',
+      q: 'So, when will we get *superintelligence*?' }
+  ],
+
+  emotes: ['🔥', '🤯', '🤔', '👏', '😂', '💀']
+};
+
+</script>
+<script>
+//---------------------------------------------------------------------
+//
+// QR Code Generator for JavaScript
+//
+// Copyright (c) 2009 Kazuhiko Arase
+//
+// URL: http://www.d-project.com/
+//
+// Licensed under the MIT license:
+//  http://www.opensource.org/licenses/mit-license.php
+//
+// The word 'QR Code' is registered trademark of
+// DENSO WAVE INCORPORATED
+//  http://www.denso-wave.com/qrcode/faqpatent-e.html
+//
+//---------------------------------------------------------------------
+
+var qrcode = function() {
+
+  //---------------------------------------------------------------------
+  // qrcode
+  //---------------------------------------------------------------------
+
+  /**
+   * qrcode
+   * @param typeNumber 1 to 40
+   * @param errorCorrectionLevel 'L','M','Q','H'
+   */
+  var qrcode = function(typeNumber, errorCorrectionLevel) {
+
+    var PAD0 = 0xEC;
+    var PAD1 = 0x11;
+
+    var _typeNumber = typeNumber;
+    var _errorCorrectionLevel = QRErrorCorrectionLevel[errorCorrectionLevel];
+    var _modules = null;
+    var _moduleCount = 0;
+    var _dataCache = null;
+    var _dataList = [];
+
+    var _this = {};
+
+    var makeImpl = function(test, maskPattern) {
+
+      _moduleCount = _typeNumber * 4 + 17;
+      _modules = function(moduleCount) {
+        var modules = new Array(moduleCount);
+        for (var row = 0; row < moduleCount; row += 1) {
+          modules[row] = new Array(moduleCount);
+          for (var col = 0; col < moduleCount; col += 1) {
+            modules[row][col] = null;
+          }
+        }
+        return modules;
+      }(_moduleCount);
+
+      setupPositionProbePattern(0, 0);
+      setupPositionProbePattern(_moduleCount - 7, 0);
+      setupPositionProbePattern(0, _moduleCount - 7);
+      setupPositionAdjustPattern();
+      setupTimingPattern();
+      setupTypeInfo(test, maskPattern);
+
+      if (_typeNumber >= 7) {
+        setupTypeNumber(test);
+      }
+
+      if (_dataCache == null) {
+        _dataCache = createData(_typeNumber, _errorCorrectionLevel, _dataList);
+      }
+
+      mapData(_dataCache, maskPattern);
+    };
+
+    var setupPositionProbePattern = function(row, col) {
+
+      for (var r = -1; r <= 7; r += 1) {
+
+        if (row + r <= -1 || _moduleCount <= row + r) continue;
+
+        for (var c = -1; c <= 7; c += 1) {
+
+          if (col + c <= -1 || _moduleCount <= col + c) continue;
+
+          if ( (0 <= r && r <= 6 && (c == 0 || c == 6) )
+              || (0 <= c && c <= 6 && (r == 0 || r == 6) )
+              || (2 <= r && r <= 4 && 2 <= c && c <= 4) ) {
+            _modules[row + r][col + c] = true;
+          } else {
+            _modules[row + r][col + c] = false;
+          }
+        }
+      }
+    };
+
+    var getBestMaskPattern = function() {
+
+      var minLostPoint = 0;
+      var pattern = 0;
+
+      for (var i = 0; i < 8; i += 1) {
+
+        makeImpl(true, i);
+
+        var lostPoint = QRUtil.getLostPoint(_this);
+
+        if (i == 0 || minLostPoint > lostPoint) {
+          minLostPoint = lostPoint;
+          pattern = i;
+        }
+      }
+
+      return pattern;
+    };
+
+    var setupTimingPattern = function() {
+
+      for (var r = 8; r < _moduleCount - 8; r += 1) {
+        if (_modules[r][6] != null) {
+          continue;
+        }
+        _modules[r][6] = (r % 2 == 0);
+      }
+
+      for (var c = 8; c < _moduleCount - 8; c += 1) {
+        if (_modules[6][c] != null) {
+          continue;
+        }
+        _modules[6][c] = (c % 2 == 0);
+      }
+    };
+
+    var setupPositionAdjustPattern = function() {
+
+      var pos = QRUtil.getPatternPosition(_typeNumber);
+
+      for (var i = 0; i < pos.length; i += 1) {
+
+        for (var j = 0; j < pos.length; j += 1) {
+
+          var row = pos[i];
+          var col = pos[j];
+
+          if (_modules[row][col] != null) {
+            continue;
+          }
+
+          for (var r = -2; r <= 2; r += 1) {
+
+            for (var c = -2; c <= 2; c += 1) {
+
+              if (r == -2 || r == 2 || c == -2 || c == 2
+                  || (r == 0 && c == 0) ) {
+                _modules[row + r][col + c] = true;
+              } else {
+                _modules[row + r][col + c] = false;
+              }
+            }
+          }
+        }
+      }
+    };
+
+    var setupTypeNumber = function(test) {
+
+      var bits = QRUtil.getBCHTypeNumber(_typeNumber);
+
+      for (var i = 0; i < 18; i += 1) {
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+        _modules[Math.floor(i / 3)][i % 3 + _moduleCount - 8 - 3] = mod;
+      }
+
+      for (var i = 0; i < 18; i += 1) {
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+        _modules[i % 3 + _moduleCount - 8 - 3][Math.floor(i / 3)] = mod;
+      }
+    };
+
+    var setupTypeInfo = function(test, maskPattern) {
+
+      var data = (_errorCorrectionLevel << 3) | maskPattern;
+      var bits = QRUtil.getBCHTypeInfo(data);
+
+      // vertical
+      for (var i = 0; i < 15; i += 1) {
+
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+
+        if (i < 6) {
+          _modules[i][8] = mod;
+        } else if (i < 8) {
+          _modules[i + 1][8] = mod;
+        } else {
+          _modules[_moduleCount - 15 + i][8] = mod;
+        }
+      }
+
+      // horizontal
+      for (var i = 0; i < 15; i += 1) {
+
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+
+        if (i < 8) {
+          _modules[8][_moduleCount - i - 1] = mod;
+        } else if (i < 9) {
+          _modules[8][15 - i - 1 + 1] = mod;
+        } else {
+          _modules[8][15 - i - 1] = mod;
+        }
+      }
+
+      // fixed module
+      _modules[_moduleCount - 8][8] = (!test);
+    };
+
+    var mapData = function(data, maskPattern) {
+
+      var inc = -1;
+      var row = _moduleCount - 1;
+      var bitIndex = 7;
+      var byteIndex = 0;
+      var maskFunc = QRUtil.getMaskFunction(maskPattern);
+
+      for (var col = _moduleCount - 1; col > 0; col -= 2) {
+
+        if (col == 6) col -= 1;
+
+        while (true) {
+
+          for (var c = 0; c < 2; c += 1) {
+
+            if (_modules[row][col - c] == null) {
+
+              var dark = false;
+
+              if (byteIndex < data.length) {
+                dark = ( ( (data[byteIndex] >>> bitIndex) & 1) == 1);
+              }
+
+              var mask = maskFunc(row, col - c);
+
+              if (mask) {
+                dark = !dark;
+              }
+
+              _modules[row][col - c] = dark;
+              bitIndex -= 1;
+
+              if (bitIndex == -1) {
+                byteIndex += 1;
+                bitIndex = 7;
+              }
+            }
+          }
+
+          row += inc;
+
+          if (row < 0 || _moduleCount <= row) {
+            row -= inc;
+            inc = -inc;
+            break;
+          }
+        }
+      }
+    };
+
+    var createBytes = function(buffer, rsBlocks) {
+
+      var offset = 0;
+
+      var maxDcCount = 0;
+      var maxEcCount = 0;
+
+      var dcdata = new Array(rsBlocks.length);
+      var ecdata = new Array(rsBlocks.length);
+
+      for (var r = 0; r < rsBlocks.length; r += 1) {
+
+        var dcCount = rsBlocks[r].dataCount;
+        var ecCount = rsBlocks[r].totalCount - dcCount;
+
+        maxDcCount = Math.max(maxDcCount, dcCount);
+        maxEcCount = Math.max(maxEcCount, ecCount);
+
+        dcdata[r] = new Array(dcCount);
+
+        for (var i = 0; i < dcdata[r].length; i += 1) {
+          dcdata[r][i] = 0xff & buffer.getBuffer()[i + offset];
+        }
+        offset += dcCount;
+
+        var rsPoly = QRUtil.getErrorCorrectPolynomial(ecCount);
+        var rawPoly = qrPolynomial(dcdata[r], rsPoly.getLength() - 1);
+
+        var modPoly = rawPoly.mod(rsPoly);
+        ecdata[r] = new Array(rsPoly.getLength() - 1);
+        for (var i = 0; i < ecdata[r].length; i += 1) {
+          var modIndex = i + modPoly.getLength() - ecdata[r].length;
+          ecdata[r][i] = (modIndex >= 0)? modPoly.getAt(modIndex) : 0;
+        }
+      }
+
+      var totalCodeCount = 0;
+      for (var i = 0; i < rsBlocks.length; i += 1) {
+        totalCodeCount += rsBlocks[i].totalCount;
+      }
+
+      var data = new Array(totalCodeCount);
+      var index = 0;
+
+      for (var i = 0; i < maxDcCount; i += 1) {
+        for (var r = 0; r < rsBlocks.length; r += 1) {
+          if (i < dcdata[r].length) {
+            data[index] = dcdata[r][i];
+            index += 1;
+          }
+        }
+      }
+
+      for (var i = 0; i < maxEcCount; i += 1) {
+        for (var r = 0; r < rsBlocks.length; r += 1) {
+          if (i < ecdata[r].length) {
+            data[index] = ecdata[r][i];
+            index += 1;
+          }
+        }
+      }
+
+      return data;
+    };
+
+    var createData = function(typeNumber, errorCorrectionLevel, dataList) {
+
+      var rsBlocks = QRRSBlock.getRSBlocks(typeNumber, errorCorrectionLevel);
+
+      var buffer = qrBitBuffer();
+
+      for (var i = 0; i < dataList.length; i += 1) {
+        var data = dataList[i];
+        buffer.put(data.getMode(), 4);
+        buffer.put(data.getLength(), QRUtil.getLengthInBits(data.getMode(), typeNumber) );
+        data.write(buffer);
+      }
+
+      // calc num max data.
+      var totalDataCount = 0;
+      for (var i = 0; i < rsBlocks.length; i += 1) {
+        totalDataCount += rsBlocks[i].dataCount;
+      }
+
+      if (buffer.getLengthInBits() > totalDataCount * 8) {
+        throw 'code length overflow. ('
+          + buffer.getLengthInBits()
+          + '>'
+          + totalDataCount * 8
+          + ')';
+      }
+
+      // end code
+      if (buffer.getLengthInBits() + 4 <= totalDataCount * 8) {
+        buffer.put(0, 4);
+      }
+
+      // padding
+      while (buffer.getLengthInBits() % 8 != 0) {
+        buffer.putBit(false);
+      }
+
+      // padding
+      while (true) {
+
+        if (buffer.getLengthInBits() >= totalDataCount * 8) {
+          break;
+        }
+        buffer.put(PAD0, 8);
+
+        if (buffer.getLengthInBits() >= totalDataCount * 8) {
+          break;
+        }
+        buffer.put(PAD1, 8);
+      }
+
+      return createBytes(buffer, rsBlocks);
+    };
+
+    _this.addData = function(data, mode) {
+
+      mode = mode || 'Byte';
+
+      var newData = null;
+
+      switch(mode) {
+      case 'Numeric' :
+        newData = qrNumber(data);
+        break;
+      case 'Alphanumeric' :
+        newData = qrAlphaNum(data);
+        break;
+      case 'Byte' :
+        newData = qr8BitByte(data);
+        break;
+      case 'Kanji' :
+        newData = qrKanji(data);
+        break;
+      default :
+        throw 'mode:' + mode;
+      }
+
+      _dataList.push(newData);
+      _dataCache = null;
+    };
+
+    _this.isDark = function(row, col) {
+      if (row < 0 || _moduleCount <= row || col < 0 || _moduleCount <= col) {
+        throw row + ',' + col;
+      }
+      return _modules[row][col];
+    };
+
+    _this.getModuleCount = function() {
+      return _moduleCount;
+    };
+
+    _this.make = function() {
+      if (_typeNumber < 1) {
+        var typeNumber = 1;
+
+        for (; typeNumber < 40; typeNumber++) {
+          var rsBlocks = QRRSBlock.getRSBlocks(typeNumber, _errorCorrectionLevel);
+          var buffer = qrBitBuffer();
+
+          for (var i = 0; i < _dataList.length; i++) {
+            var data = _dataList[i];
+            buffer.put(data.getMode(), 4);
+            buffer.put(data.getLength(), QRUtil.getLengthInBits(data.getMode(), typeNumber) );
+            data.write(buffer);
+          }
+
+          var totalDataCount = 0;
+          for (var i = 0; i < rsBlocks.length; i++) {
+            totalDataCount += rsBlocks[i].dataCount;
+          }
+
+          if (buffer.getLengthInBits() <= totalDataCount * 8) {
+            break;
+          }
+        }
+
+        _typeNumber = typeNumber;
+      }
+
+      makeImpl(false, getBestMaskPattern() );
+    };
+
+    _this.createTableTag = function(cellSize, margin) {
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      var qrHtml = '';
+
+      qrHtml += '<table style="';
+      qrHtml += ' border-width: 0px; border-style: none;';
+      qrHtml += ' border-collapse: collapse;';
+      qrHtml += ' padding: 0px; margin: ' + margin + 'px;';
+      qrHtml += '">';
+      qrHtml += '<tbody>';
+
+      for (var r = 0; r < _this.getModuleCount(); r += 1) {
+
+        qrHtml += '<tr>';
+
+        for (var c = 0; c < _this.getModuleCount(); c += 1) {
+          qrHtml += '<td style="';
+          qrHtml += ' border-width: 0px; border-style: none;';
+          qrHtml += ' border-collapse: collapse;';
+          qrHtml += ' padding: 0px; margin: 0px;';
+          qrHtml += ' width: ' + cellSize + 'px;';
+          qrHtml += ' height: ' + cellSize + 'px;';
+          qrHtml += ' background-color: ';
+          qrHtml += _this.isDark(r, c)? '#000000' : '#ffffff';
+          qrHtml += ';';
+          qrHtml += '"/>';
+        }
+
+        qrHtml += '</tr>';
+      }
+
+      qrHtml += '</tbody>';
+      qrHtml += '</table>';
+
+      return qrHtml;
+    };
+
+    _this.createSvgTag = function(cellSize, margin, alt, title) {
+
+      var opts = {};
+      if (typeof arguments[0] == 'object') {
+        // Called by options.
+        opts = arguments[0];
+        // overwrite cellSize and margin.
+        cellSize = opts.cellSize;
+        margin = opts.margin;
+        alt = opts.alt;
+        title = opts.title;
+      }
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      // Compose alt property surrogate
+      alt = (typeof alt === 'string') ? {text: alt} : alt || {};
+      alt.text = alt.text || null;
+      alt.id = (alt.text) ? alt.id || 'qrcode-description' : null;
+
+      // Compose title property surrogate
+      title = (typeof title === 'string') ? {text: title} : title || {};
+      title.text = title.text || null;
+      title.id = (title.text) ? title.id || 'qrcode-title' : null;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var c, mc, r, mr, qrSvg='', rect;
+
+      rect = 'l' + cellSize + ',0 0,' + cellSize +
+        ' -' + cellSize + ',0 0,-' + cellSize + 'z ';
+
+      qrSvg += '<svg version="1.1" xmlns="http://www.w3.org/2000/svg"';
+      qrSvg += !opts.scalable ? ' width="' + size + 'px" height="' + size + 'px"' : '';
+      qrSvg += ' viewBox="0 0 ' + size + ' ' + size + '" ';
+      qrSvg += ' preserveAspectRatio="xMinYMin meet"';
+      qrSvg += (title.text || alt.text) ? ' role="img" aria-labelledby="' +
+          escapeXml([title.id, alt.id].join(' ').trim() ) + '"' : '';
+      qrSvg += '>';
+      qrSvg += (title.text) ? '<title id="' + escapeXml(title.id) + '">' +
+          escapeXml(title.text) + '</title>' : '';
+      qrSvg += (alt.text) ? '<description id="' + escapeXml(alt.id) + '">' +
+          escapeXml(alt.text) + '</description>' : '';
+      qrSvg += '<rect width="100%" height="100%" fill="white" cx="0" cy="0"/>';
+      qrSvg += '<path d="';
+
+      for (r = 0; r < _this.getModuleCount(); r += 1) {
+        mr = r * cellSize + margin;
+        for (c = 0; c < _this.getModuleCount(); c += 1) {
+          if (_this.isDark(r, c) ) {
+            mc = c*cellSize+margin;
+            qrSvg += 'M' + mc + ',' + mr + rect;
+          }
+        }
+      }
+
+      qrSvg += '" stroke="transparent" fill="black"/>';
+      qrSvg += '</svg>';
+
+      return qrSvg;
+    };
+
+    _this.createDataURL = function(cellSize, margin) {
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var min = margin;
+      var max = size - margin;
+
+      return createDataURL(size, size, function(x, y) {
+        if (min <= x && x < max && min <= y && y < max) {
+          var c = Math.floor( (x - min) / cellSize);
+          var r = Math.floor( (y - min) / cellSize);
+          return _this.isDark(r, c)? 0 : 1;
+        } else {
+          return 1;
+        }
+      } );
+    };
+
+    _this.createImgTag = function(cellSize, margin, alt) {
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+
+      var img = '';
+      img += '<img';
+      img += '\u0020src="';
+      img += _this.createDataURL(cellSize, margin);
+      img += '"';
+      img += '\u0020width="';
+      img += size;
+      img += '"';
+      img += '\u0020height="';
+      img += size;
+      img += '"';
+      if (alt) {
+        img += '\u0020alt="';
+        img += escapeXml(alt);
+        img += '"';
+      }
+      img += '/>';
+
+      return img;
+    };
+
+    var escapeXml = function(s) {
+      var escaped = '';
+      for (var i = 0; i < s.length; i += 1) {
+        var c = s.charAt(i);
+        switch(c) {
+        case '<': escaped += '&lt;'; break;
+        case '>': escaped += '&gt;'; break;
+        case '&': escaped += '&amp;'; break;
+        case '"': escaped += '&quot;'; break;
+        default : escaped += c; break;
+        }
+      }
+      return escaped;
+    };
+
+    var _createHalfASCII = function(margin) {
+      var cellSize = 1;
+      margin = (typeof margin == 'undefined')? cellSize * 2 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var min = margin;
+      var max = size - margin;
+
+      var y, x, r1, r2, p;
+
+      var blocks = {
+        '██': '█',
+        '█ ': '▀',
+        ' █': '▄',
+        '  ': ' '
+      };
+
+      var blocksLastLineNoMargin = {
+        '██': '▀',
+        '█ ': '▀',
+        ' █': ' ',
+        '  ': ' '
+      };
+
+      var ascii = '';
+      for (y = 0; y < size; y += 2) {
+        r1 = Math.floor((y - min) / cellSize);
+        r2 = Math.floor((y + 1 - min) / cellSize);
+        for (x = 0; x < size; x += 1) {
+          p = '█';
+
+          if (min <= x && x < max && min <= y && y < max && _this.isDark(r1, Math.floor((x - min) / cellSize))) {
+            p = ' ';
+          }
+
+          if (min <= x && x < max && min <= y+1 && y+1 < max && _this.isDark(r2, Math.floor((x - min) / cellSize))) {
+            p += ' ';
+          }
+          else {
+            p += '█';
+          }
+
+          // Output 2 characters per pixel, to create full square. 1 character per pixels gives only half width of square.
+          ascii += (margin < 1 && y+1 >= max) ? blocksLastLineNoMargin[p] : blocks[p];
+        }
+
+        ascii += '\n';
+      }
+
+      if (size % 2 && margin > 0) {
+        return ascii.substring(0, ascii.length - size - 1) + Array(size+1).join('▀');
+      }
+
+      return ascii.substring(0, ascii.length-1);
+    };
+
+    _this.createASCII = function(cellSize, margin) {
+      cellSize = cellSize || 1;
+
+      if (cellSize < 2) {
+        return _createHalfASCII(margin);
+      }
+
+      cellSize -= 1;
+      margin = (typeof margin == 'undefined')? cellSize * 2 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var min = margin;
+      var max = size - margin;
+
+      var y, x, r, p;
+
+      var white = Array(cellSize+1).join('██');
+      var black = Array(cellSize+1).join('  ');
+
+      var ascii = '';
+      var line = '';
+      for (y = 0; y < size; y += 1) {
+        r = Math.floor( (y - min) / cellSize);
+        line = '';
+        for (x = 0; x < size; x += 1) {
+          p = 1;
+
+          if (min <= x && x < max && min <= y && y < max && _this.isDark(r, Math.floor((x - min) / cellSize))) {
+            p = 0;
+          }
+
+          // Output 2 characters per pixel, to create full square. 1 character per pixels gives only half width of square.
+          line += p ? white : black;
+        }
+
+        for (r = 0; r < cellSize; r += 1) {
+          ascii += line + '\n';
+        }
+      }
+
+      return ascii.substring(0, ascii.length-1);
+    };
+
+    _this.renderTo2dContext = function(context, cellSize) {
+      cellSize = cellSize || 2;
+      var length = _this.getModuleCount();
+      for (var row = 0; row < length; row++) {
+        for (var col = 0; col < length; col++) {
+          context.fillStyle = _this.isDark(row, col) ? 'black' : 'white';
+          context.fillRect(row * cellSize, col * cellSize, cellSize, cellSize);
+        }
+      }
+    }
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrcode.stringToBytes
+  //---------------------------------------------------------------------
+
+  qrcode.stringToBytesFuncs = {
+    'default' : function(s) {
+      var bytes = [];
+      for (var i = 0; i < s.length; i += 1) {
+        var c = s.charCodeAt(i);
+        bytes.push(c & 0xff);
+      }
+      return bytes;
+    }
+  };
+
+  qrcode.stringToBytes = qrcode.stringToBytesFuncs['default'];
+
+  //---------------------------------------------------------------------
+  // qrcode.createStringToBytes
+  //---------------------------------------------------------------------
+
+  /**
+   * @param unicodeData base64 string of byte array.
+   * [16bit Unicode],[16bit Bytes], ...
+   * @param numChars
+   */
+  qrcode.createStringToBytes = function(unicodeData, numChars) {
+
+    // create conversion map.
+
+    var unicodeMap = function() {
+
+      var bin = base64DecodeInputStream(unicodeData);
+      var read = function() {
+        var b = bin.read();
+        if (b == -1) throw 'eof';
+        return b;
+      };
+
+      var count = 0;
+      var unicodeMap = {};
+      while (true) {
+        var b0 = bin.read();
+        if (b0 == -1) break;
+        var b1 = read();
+        var b2 = read();
+        var b3 = read();
+        var k = String.fromCharCode( (b0 << 8) | b1);
+        var v = (b2 << 8) | b3;
+        unicodeMap[k] = v;
+        count += 1;
+      }
+      if (count != numChars) {
+        throw count + ' != ' + numChars;
+      }
+
+      return unicodeMap;
+    }();
+
+    var unknownChar = '?'.charCodeAt(0);
+
+    return function(s) {
+      var bytes = [];
+      for (var i = 0; i < s.length; i += 1) {
+        var c = s.charCodeAt(i);
+        if (c < 128) {
+          bytes.push(c);
+        } else {
+          var b = unicodeMap[s.charAt(i)];
+          if (typeof b == 'number') {
+            if ( (b & 0xff) == b) {
+              // 1byte
+              bytes.push(b);
+            } else {
+              // 2bytes
+              bytes.push(b >>> 8);
+              bytes.push(b & 0xff);
+            }
+          } else {
+            bytes.push(unknownChar);
+          }
+        }
+      }
+      return bytes;
+    };
+  };
+
+  //---------------------------------------------------------------------
+  // QRMode
+  //---------------------------------------------------------------------
+
+  var QRMode = {
+    MODE_NUMBER :    1 << 0,
+    MODE_ALPHA_NUM : 1 << 1,
+    MODE_8BIT_BYTE : 1 << 2,
+    MODE_KANJI :     1 << 3
+  };
+
+  //---------------------------------------------------------------------
+  // QRErrorCorrectionLevel
+  //---------------------------------------------------------------------
+
+  var QRErrorCorrectionLevel = {
+    L : 1,
+    M : 0,
+    Q : 3,
+    H : 2
+  };
+
+  //---------------------------------------------------------------------
+  // QRMaskPattern
+  //---------------------------------------------------------------------
+
+  var QRMaskPattern = {
+    PATTERN000 : 0,
+    PATTERN001 : 1,
+    PATTERN010 : 2,
+    PATTERN011 : 3,
+    PATTERN100 : 4,
+    PATTERN101 : 5,
+    PATTERN110 : 6,
+    PATTERN111 : 7
+  };
+
+  //---------------------------------------------------------------------
+  // QRUtil
+  //---------------------------------------------------------------------
+
+  var QRUtil = function() {
+
+    var PATTERN_POSITION_TABLE = [
+      [],
+      [6, 18],
+      [6, 22],
+      [6, 26],
+      [6, 30],
+      [6, 34],
+      [6, 22, 38],
+      [6, 24, 42],
+      [6, 26, 46],
+      [6, 28, 50],
+      [6, 30, 54],
+      [6, 32, 58],
+      [6, 34, 62],
+      [6, 26, 46, 66],
+      [6, 26, 48, 70],
+      [6, 26, 50, 74],
+      [6, 30, 54, 78],
+      [6, 30, 56, 82],
+      [6, 30, 58, 86],
+      [6, 34, 62, 90],
+      [6, 28, 50, 72, 94],
+      [6, 26, 50, 74, 98],
+      [6, 30, 54, 78, 102],
+      [6, 28, 54, 80, 106],
+      [6, 32, 58, 84, 110],
+      [6, 30, 58, 86, 114],
+      [6, 34, 62, 90, 118],
+      [6, 26, 50, 74, 98, 122],
+      [6, 30, 54, 78, 102, 126],
+      [6, 26, 52, 78, 104, 130],
+      [6, 30, 56, 82, 108, 134],
+      [6, 34, 60, 86, 112, 138],
+      [6, 30, 58, 86, 114, 142],
+      [6, 34, 62, 90, 118, 146],
+      [6, 30, 54, 78, 102, 126, 150],
+      [6, 24, 50, 76, 102, 128, 154],
+      [6, 28, 54, 80, 106, 132, 158],
+      [6, 32, 58, 84, 110, 136, 162],
+      [6, 26, 54, 82, 110, 138, 166],
+      [6, 30, 58, 86, 114, 142, 170]
+    ];
+    var G15 = (1 << 10) | (1 << 8) | (1 << 5) | (1 << 4) | (1 << 2) | (1 << 1) | (1 << 0);
+    var G18 = (1 << 12) | (1 << 11) | (1 << 10) | (1 << 9) | (1 << 8) | (1 << 5) | (1 << 2) | (1 << 0);
+    var G15_MASK = (1 << 14) | (1 << 12) | (1 << 10) | (1 << 4) | (1 << 1);
+
+    var _this = {};
+
+    var getBCHDigit = function(data) {
+      var digit = 0;
+      while (data != 0) {
+        digit += 1;
+        data >>>= 1;
+      }
+      return digit;
+    };
+
+    _this.getBCHTypeInfo = function(data) {
+      var d = data << 10;
+      while (getBCHDigit(d) - getBCHDigit(G15) >= 0) {
+        d ^= (G15 << (getBCHDigit(d) - getBCHDigit(G15) ) );
+      }
+      return ( (data << 10) | d) ^ G15_MASK;
+    };
+
+    _this.getBCHTypeNumber = function(data) {
+      var d = data << 12;
+      while (getBCHDigit(d) - getBCHDigit(G18) >= 0) {
+        d ^= (G18 << (getBCHDigit(d) - getBCHDigit(G18) ) );
+      }
+      return (data << 12) | d;
+    };
+
+    _this.getPatternPosition = function(typeNumber) {
+      return PATTERN_POSITION_TABLE[typeNumber - 1];
+    };
+
+    _this.getMaskFunction = function(maskPattern) {
+
+      switch (maskPattern) {
+
+      case QRMaskPattern.PATTERN000 :
+        return function(i, j) { return (i + j) % 2 == 0; };
+      case QRMaskPattern.PATTERN001 :
+        return function(i, j) { return i % 2 == 0; };
+      case QRMaskPattern.PATTERN010 :
+        return function(i, j) { return j % 3 == 0; };
+      case QRMaskPattern.PATTERN011 :
+        return function(i, j) { return (i + j) % 3 == 0; };
+      case QRMaskPattern.PATTERN100 :
+        return function(i, j) { return (Math.floor(i / 2) + Math.floor(j / 3) ) % 2 == 0; };
+      case QRMaskPattern.PATTERN101 :
+        return function(i, j) { return (i * j) % 2 + (i * j) % 3 == 0; };
+      case QRMaskPattern.PATTERN110 :
+        return function(i, j) { return ( (i * j) % 2 + (i * j) % 3) % 2 == 0; };
+      case QRMaskPattern.PATTERN111 :
+        return function(i, j) { return ( (i * j) % 3 + (i + j) % 2) % 2 == 0; };
+
+      default :
+        throw 'bad maskPattern:' + maskPattern;
+      }
+    };
+
+    _this.getErrorCorrectPolynomial = function(errorCorrectLength) {
+      var a = qrPolynomial([1], 0);
+      for (var i = 0; i < errorCorrectLength; i += 1) {
+        a = a.multiply(qrPolynomial([1, QRMath.gexp(i)], 0) );
+      }
+      return a;
+    };
+
+    _this.getLengthInBits = function(mode, type) {
+
+      if (1 <= type && type < 10) {
+
+        // 1 - 9
+
+        switch(mode) {
+        case QRMode.MODE_NUMBER    : return 10;
+        case QRMode.MODE_ALPHA_NUM : return 9;
+        case QRMode.MODE_8BIT_BYTE : return 8;
+        case QRMode.MODE_KANJI     : return 8;
+        default :
+          throw 'mode:' + mode;
+        }
+
+      } else if (type < 27) {
+
+        // 10 - 26
+
+        switch(mode) {
+        case QRMode.MODE_NUMBER    : return 12;
+        case QRMode.MODE_ALPHA_NUM : return 11;
+        case QRMode.MODE_8BIT_BYTE : return 16;
+        case QRMode.MODE_KANJI     : return 10;
+        default :
+          throw 'mode:' + mode;
+        }
+
+      } else if (type < 41) {
+
+        // 27 - 40
+
+        switch(mode) {
+        case QRMode.MODE_NUMBER    : return 14;
+        case QRMode.MODE_ALPHA_NUM : return 13;
+        case QRMode.MODE_8BIT_BYTE : return 16;
+        case QRMode.MODE_KANJI     : return 12;
+        default :
+          throw 'mode:' + mode;
+        }
+
+      } else {
+        throw 'type:' + type;
+      }
+    };
+
+    _this.getLostPoint = function(qrcode) {
+
+      var moduleCount = qrcode.getModuleCount();
+
+      var lostPoint = 0;
+
+      // LEVEL1
+
+      for (var row = 0; row < moduleCount; row += 1) {
+        for (var col = 0; col < moduleCount; col += 1) {
+
+          var sameCount = 0;
+          var dark = qrcode.isDark(row, col);
+
+          for (var r = -1; r <= 1; r += 1) {
+
+            if (row + r < 0 || moduleCount <= row + r) {
+              continue;
+            }
+
+            for (var c = -1; c <= 1; c += 1) {
+
+              if (col + c < 0 || moduleCount <= col + c) {
+                continue;
+              }
+
+              if (r == 0 && c == 0) {
+                continue;
+              }
+
+              if (dark == qrcode.isDark(row + r, col + c) ) {
+                sameCount += 1;
+              }
+            }
+          }
+
+          if (sameCount > 5) {
+            lostPoint += (3 + sameCount - 5);
+          }
+        }
+      };
+
+      // LEVEL2
+
+      for (var row = 0; row < moduleCount - 1; row += 1) {
+        for (var col = 0; col < moduleCount - 1; col += 1) {
+          var count = 0;
+          if (qrcode.isDark(row, col) ) count += 1;
+          if (qrcode.isDark(row + 1, col) ) count += 1;
+          if (qrcode.isDark(row, col + 1) ) count += 1;
+          if (qrcode.isDark(row + 1, col + 1) ) count += 1;
+          if (count == 0 || count == 4) {
+            lostPoint += 3;
+          }
+        }
+      }
+
+      // LEVEL3
+
+      for (var row = 0; row < moduleCount; row += 1) {
+        for (var col = 0; col < moduleCount - 6; col += 1) {
+          if (qrcode.isDark(row, col)
+              && !qrcode.isDark(row, col + 1)
+              &&  qrcode.isDark(row, col + 2)
+              &&  qrcode.isDark(row, col + 3)
+              &&  qrcode.isDark(row, col + 4)
+              && !qrcode.isDark(row, col + 5)
+              &&  qrcode.isDark(row, col + 6) ) {
+            lostPoint += 40;
+          }
+        }
+      }
+
+      for (var col = 0; col < moduleCount; col += 1) {
+        for (var row = 0; row < moduleCount - 6; row += 1) {
+          if (qrcode.isDark(row, col)
+              && !qrcode.isDark(row + 1, col)
+              &&  qrcode.isDark(row + 2, col)
+              &&  qrcode.isDark(row + 3, col)
+              &&  qrcode.isDark(row + 4, col)
+              && !qrcode.isDark(row + 5, col)
+              &&  qrcode.isDark(row + 6, col) ) {
+            lostPoint += 40;
+          }
+        }
+      }
+
+      // LEVEL4
+
+      var darkCount = 0;
+
+      for (var col = 0; col < moduleCount; col += 1) {
+        for (var row = 0; row < moduleCount; row += 1) {
+          if (qrcode.isDark(row, col) ) {
+            darkCount += 1;
+          }
+        }
+      }
+
+      var ratio = Math.abs(100 * darkCount / moduleCount / moduleCount - 50) / 5;
+      lostPoint += ratio * 10;
+
+      return lostPoint;
+    };
+
+    return _this;
+  }();
+
+  //---------------------------------------------------------------------
+  // QRMath
+  //---------------------------------------------------------------------
+
+  var QRMath = function() {
+
+    var EXP_TABLE = new Array(256);
+    var LOG_TABLE = new Array(256);
+
+    // initialize tables
+    for (var i = 0; i < 8; i += 1) {
+      EXP_TABLE[i] = 1 << i;
+    }
+    for (var i = 8; i < 256; i += 1) {
+      EXP_TABLE[i] = EXP_TABLE[i - 4]
+        ^ EXP_TABLE[i - 5]
+        ^ EXP_TABLE[i - 6]
+        ^ EXP_TABLE[i - 8];
+    }
+    for (var i = 0; i < 255; i += 1) {
+      LOG_TABLE[EXP_TABLE[i] ] = i;
+    }
+
+    var _this = {};
+
+    _this.glog = function(n) {
+
+      if (n < 1) {
+        throw 'glog(' + n + ')';
+      }
+
+      return LOG_TABLE[n];
+    };
+
+    _this.gexp = function(n) {
+
+      while (n < 0) {
+        n += 255;
+      }
+
+      while (n >= 256) {
+        n -= 255;
+      }
+
+      return EXP_TABLE[n];
+    };
+
+    return _this;
+  }();
+
+  //---------------------------------------------------------------------
+  // qrPolynomial
+  //---------------------------------------------------------------------
+
+  function qrPolynomial(num, shift) {
+
+    if (typeof num.length == 'undefined') {
+      throw num.length + '/' + shift;
+    }
+
+    var _num = function() {
+      var offset = 0;
+      while (offset < num.length && num[offset] == 0) {
+        offset += 1;
+      }
+      var _num = new Array(num.length - offset + shift);
+      for (var i = 0; i < num.length - offset; i += 1) {
+        _num[i] = num[i + offset];
+      }
+      return _num;
+    }();
+
+    var _this = {};
+
+    _this.getAt = function(index) {
+      return _num[index];
+    };
+
+    _this.getLength = function() {
+      return _num.length;
+    };
+
+    _this.multiply = function(e) {
+
+      var num = new Array(_this.getLength() + e.getLength() - 1);
+
+      for (var i = 0; i < _this.getLength(); i += 1) {
+        for (var j = 0; j < e.getLength(); j += 1) {
+          num[i + j] ^= QRMath.gexp(QRMath.glog(_this.getAt(i) ) + QRMath.glog(e.getAt(j) ) );
+        }
+      }
+
+      return qrPolynomial(num, 0);
+    };
+
+    _this.mod = function(e) {
+
+      if (_this.getLength() - e.getLength() < 0) {
+        return _this;
+      }
+
+      var ratio = QRMath.glog(_this.getAt(0) ) - QRMath.glog(e.getAt(0) );
+
+      var num = new Array(_this.getLength() );
+      for (var i = 0; i < _this.getLength(); i += 1) {
+        num[i] = _this.getAt(i);
+      }
+
+      for (var i = 0; i < e.getLength(); i += 1) {
+        num[i] ^= QRMath.gexp(QRMath.glog(e.getAt(i) ) + ratio);
+      }
+
+      // recursive call
+      return qrPolynomial(num, 0).mod(e);
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // QRRSBlock
+  //---------------------------------------------------------------------
+
+  var QRRSBlock = function() {
+
+    var RS_BLOCK_TABLE = [
+
+      // L
+      // M
+      // Q
+      // H
+
+      // 1
+      [1, 26, 19],
+      [1, 26, 16],
+      [1, 26, 13],
+      [1, 26, 9],
+
+      // 2
+      [1, 44, 34],
+      [1, 44, 28],
+      [1, 44, 22],
+      [1, 44, 16],
+
+      // 3
+      [1, 70, 55],
+      [1, 70, 44],
+      [2, 35, 17],
+      [2, 35, 13],
+
+      // 4
+      [1, 100, 80],
+      [2, 50, 32],
+      [2, 50, 24],
+      [4, 25, 9],
+
+      // 5
+      [1, 134, 108],
+      [2, 67, 43],
+      [2, 33, 15, 2, 34, 16],
+      [2, 33, 11, 2, 34, 12],
+
+      // 6
+      [2, 86, 68],
+      [4, 43, 27],
+      [4, 43, 19],
+      [4, 43, 15],
+
+      // 7
+      [2, 98, 78],
+      [4, 49, 31],
+      [2, 32, 14, 4, 33, 15],
+      [4, 39, 13, 1, 40, 14],
+
+      // 8
+      [2, 121, 97],
+      [2, 60, 38, 2, 61, 39],
+      [4, 40, 18, 2, 41, 19],
+      [4, 40, 14, 2, 41, 15],
+
+      // 9
+      [2, 146, 116],
+      [3, 58, 36, 2, 59, 37],
+      [4, 36, 16, 4, 37, 17],
+      [4, 36, 12, 4, 37, 13],
+
+      // 10
+      [2, 86, 68, 2, 87, 69],
+      [4, 69, 43, 1, 70, 44],
+      [6, 43, 19, 2, 44, 20],
+      [6, 43, 15, 2, 44, 16],
+
+      // 11
+      [4, 101, 81],
+      [1, 80, 50, 4, 81, 51],
+      [4, 50, 22, 4, 51, 23],
+      [3, 36, 12, 8, 37, 13],
+
+      // 12
+      [2, 116, 92, 2, 117, 93],
+      [6, 58, 36, 2, 59, 37],
+      [4, 46, 20, 6, 47, 21],
+      [7, 42, 14, 4, 43, 15],
+
+      // 13
+      [4, 133, 107],
+      [8, 59, 37, 1, 60, 38],
+      [8, 44, 20, 4, 45, 21],
+      [12, 33, 11, 4, 34, 12],
+
+      // 14
+      [3, 145, 115, 1, 146, 116],
+      [4, 64, 40, 5, 65, 41],
+      [11, 36, 16, 5, 37, 17],
+      [11, 36, 12, 5, 37, 13],
+
+      // 15
+      [5, 109, 87, 1, 110, 88],
+      [5, 65, 41, 5, 66, 42],
+      [5, 54, 24, 7, 55, 25],
+      [11, 36, 12, 7, 37, 13],
+
+      // 16
+      [5, 122, 98, 1, 123, 99],
+      [7, 73, 45, 3, 74, 46],
+      [15, 43, 19, 2, 44, 20],
+      [3, 45, 15, 13, 46, 16],
+
+      // 17
+      [1, 135, 107, 5, 136, 108],
+      [10, 74, 46, 1, 75, 47],
+      [1, 50, 22, 15, 51, 23],
+      [2, 42, 14, 17, 43, 15],
+
+      // 18
+      [5, 150, 120, 1, 151, 121],
+      [9, 69, 43, 4, 70, 44],
+      [17, 50, 22, 1, 51, 23],
+      [2, 42, 14, 19, 43, 15],
+
+      // 19
+      [3, 141, 113, 4, 142, 114],
+      [3, 70, 44, 11, 71, 45],
+      [17, 47, 21, 4, 48, 22],
+      [9, 39, 13, 16, 40, 14],
+
+      // 20
+      [3, 135, 107, 5, 136, 108],
+      [3, 67, 41, 13, 68, 42],
+      [15, 54, 24, 5, 55, 25],
+      [15, 43, 15, 10, 44, 16],
+
+      // 21
+      [4, 144, 116, 4, 145, 117],
+      [17, 68, 42],
+      [17, 50, 22, 6, 51, 23],
+      [19, 46, 16, 6, 47, 17],
+
+      // 22
+      [2, 139, 111, 7, 140, 112],
+      [17, 74, 46],
+      [7, 54, 24, 16, 55, 25],
+      [34, 37, 13],
+
+      // 23
+      [4, 151, 121, 5, 152, 122],
+      [4, 75, 47, 14, 76, 48],
+      [11, 54, 24, 14, 55, 25],
+      [16, 45, 15, 14, 46, 16],
+
+      // 24
+      [6, 147, 117, 4, 148, 118],
+      [6, 73, 45, 14, 74, 46],
+      [11, 54, 24, 16, 55, 25],
+      [30, 46, 16, 2, 47, 17],
+
+      // 25
+      [8, 132, 106, 4, 133, 107],
+      [8, 75, 47, 13, 76, 48],
+      [7, 54, 24, 22, 55, 25],
+      [22, 45, 15, 13, 46, 16],
+
+      // 26
+      [10, 142, 114, 2, 143, 115],
+      [19, 74, 46, 4, 75, 47],
+      [28, 50, 22, 6, 51, 23],
+      [33, 46, 16, 4, 47, 17],
+
+      // 27
+      [8, 152, 122, 4, 153, 123],
+      [22, 73, 45, 3, 74, 46],
+      [8, 53, 23, 26, 54, 24],
+      [12, 45, 15, 28, 46, 16],
+
+      // 28
+      [3, 147, 117, 10, 148, 118],
+      [3, 73, 45, 23, 74, 46],
+      [4, 54, 24, 31, 55, 25],
+      [11, 45, 15, 31, 46, 16],
+
+      // 29
+      [7, 146, 116, 7, 147, 117],
+      [21, 73, 45, 7, 74, 46],
+      [1, 53, 23, 37, 54, 24],
+      [19, 45, 15, 26, 46, 16],
+
+      // 30
+      [5, 145, 115, 10, 146, 116],
+      [19, 75, 47, 10, 76, 48],
+      [15, 54, 24, 25, 55, 25],
+      [23, 45, 15, 25, 46, 16],
+
+      // 31
+      [13, 145, 115, 3, 146, 116],
+      [2, 74, 46, 29, 75, 47],
+      [42, 54, 24, 1, 55, 25],
+      [23, 45, 15, 28, 46, 16],
+
+      // 32
+      [17, 145, 115],
+      [10, 74, 46, 23, 75, 47],
+      [10, 54, 24, 35, 55, 25],
+      [19, 45, 15, 35, 46, 16],
+
+      // 33
+      [17, 145, 115, 1, 146, 116],
+      [14, 74, 46, 21, 75, 47],
+      [29, 54, 24, 19, 55, 25],
+      [11, 45, 15, 46, 46, 16],
+
+      // 34
+      [13, 145, 115, 6, 146, 116],
+      [14, 74, 46, 23, 75, 47],
+      [44, 54, 24, 7, 55, 25],
+      [59, 46, 16, 1, 47, 17],
+
+      // 35
+      [12, 151, 121, 7, 152, 122],
+      [12, 75, 47, 26, 76, 48],
+      [39, 54, 24, 14, 55, 25],
+      [22, 45, 15, 41, 46, 16],
+
+      // 36
+      [6, 151, 121, 14, 152, 122],
+      [6, 75, 47, 34, 76, 48],
+      [46, 54, 24, 10, 55, 25],
+      [2, 45, 15, 64, 46, 16],
+
+      // 37
+      [17, 152, 122, 4, 153, 123],
+      [29, 74, 46, 14, 75, 47],
+      [49, 54, 24, 10, 55, 25],
+      [24, 45, 15, 46, 46, 16],
+
+      // 38
+      [4, 152, 122, 18, 153, 123],
+      [13, 74, 46, 32, 75, 47],
+      [48, 54, 24, 14, 55, 25],
+      [42, 45, 15, 32, 46, 16],
+
+      // 39
+      [20, 147, 117, 4, 148, 118],
+      [40, 75, 47, 7, 76, 48],
+      [43, 54, 24, 22, 55, 25],
+      [10, 45, 15, 67, 46, 16],
+
+      // 40
+      [19, 148, 118, 6, 149, 119],
+      [18, 75, 47, 31, 76, 48],
+      [34, 54, 24, 34, 55, 25],
+      [20, 45, 15, 61, 46, 16]
+    ];
+
+    var qrRSBlock = function(totalCount, dataCount) {
+      var _this = {};
+      _this.totalCount = totalCount;
+      _this.dataCount = dataCount;
+      return _this;
+    };
+
+    var _this = {};
+
+    var getRsBlockTable = function(typeNumber, errorCorrectionLevel) {
+
+      switch(errorCorrectionLevel) {
+      case QRErrorCorrectionLevel.L :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 0];
+      case QRErrorCorrectionLevel.M :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 1];
+      case QRErrorCorrectionLevel.Q :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 2];
+      case QRErrorCorrectionLevel.H :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 3];
+      default :
+        return undefined;
+      }
+    };
+
+    _this.getRSBlocks = function(typeNumber, errorCorrectionLevel) {
+
+      var rsBlock = getRsBlockTable(typeNumber, errorCorrectionLevel);
+
+      if (typeof rsBlock == 'undefined') {
+        throw 'bad rs block @ typeNumber:' + typeNumber +
+            '/errorCorrectionLevel:' + errorCorrectionLevel;
+      }
+
+      var length = rsBlock.length / 3;
+
+      var list = [];
+
+      for (var i = 0; i < length; i += 1) {
+
+        var count = rsBlock[i * 3 + 0];
+        var totalCount = rsBlock[i * 3 + 1];
+        var dataCount = rsBlock[i * 3 + 2];
+
+        for (var j = 0; j < count; j += 1) {
+          list.push(qrRSBlock(totalCount, dataCount) );
+        }
+      }
+
+      return list;
+    };
+
+    return _this;
+  }();
+
+  //---------------------------------------------------------------------
+  // qrBitBuffer
+  //---------------------------------------------------------------------
+
+  var qrBitBuffer = function() {
+
+    var _buffer = [];
+    var _length = 0;
+
+    var _this = {};
+
+    _this.getBuffer = function() {
+      return _buffer;
+    };
+
+    _this.getAt = function(index) {
+      var bufIndex = Math.floor(index / 8);
+      return ( (_buffer[bufIndex] >>> (7 - index % 8) ) & 1) == 1;
+    };
+
+    _this.put = function(num, length) {
+      for (var i = 0; i < length; i += 1) {
+        _this.putBit( ( (num >>> (length - i - 1) ) & 1) == 1);
+      }
+    };
+
+    _this.getLengthInBits = function() {
+      return _length;
+    };
+
+    _this.putBit = function(bit) {
+
+      var bufIndex = Math.floor(_length / 8);
+      if (_buffer.length <= bufIndex) {
+        _buffer.push(0);
+      }
+
+      if (bit) {
+        _buffer[bufIndex] |= (0x80 >>> (_length % 8) );
+      }
+
+      _length += 1;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrNumber
+  //---------------------------------------------------------------------
+
+  var qrNumber = function(data) {
+
+    var _mode = QRMode.MODE_NUMBER;
+    var _data = data;
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return _data.length;
+    };
+
+    _this.write = function(buffer) {
+
+      var data = _data;
+
+      var i = 0;
+
+      while (i + 2 < data.length) {
+        buffer.put(strToNum(data.substring(i, i + 3) ), 10);
+        i += 3;
+      }
+
+      if (i < data.length) {
+        if (data.length - i == 1) {
+          buffer.put(strToNum(data.substring(i, i + 1) ), 4);
+        } else if (data.length - i == 2) {
+          buffer.put(strToNum(data.substring(i, i + 2) ), 7);
+        }
+      }
+    };
+
+    var strToNum = function(s) {
+      var num = 0;
+      for (var i = 0; i < s.length; i += 1) {
+        num = num * 10 + chatToNum(s.charAt(i) );
+      }
+      return num;
+    };
+
+    var chatToNum = function(c) {
+      if ('0' <= c && c <= '9') {
+        return c.charCodeAt(0) - '0'.charCodeAt(0);
+      }
+      throw 'illegal char :' + c;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrAlphaNum
+  //---------------------------------------------------------------------
+
+  var qrAlphaNum = function(data) {
+
+    var _mode = QRMode.MODE_ALPHA_NUM;
+    var _data = data;
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return _data.length;
+    };
+
+    _this.write = function(buffer) {
+
+      var s = _data;
+
+      var i = 0;
+
+      while (i + 1 < s.length) {
+        buffer.put(
+          getCode(s.charAt(i) ) * 45 +
+          getCode(s.charAt(i + 1) ), 11);
+        i += 2;
+      }
+
+      if (i < s.length) {
+        buffer.put(getCode(s.charAt(i) ), 6);
+      }
+    };
+
+    var getCode = function(c) {
+
+      if ('0' <= c && c <= '9') {
+        return c.charCodeAt(0) - '0'.charCodeAt(0);
+      } else if ('A' <= c && c <= 'Z') {
+        return c.charCodeAt(0) - 'A'.charCodeAt(0) + 10;
+      } else {
+        switch (c) {
+        case ' ' : return 36;
+        case '$' : return 37;
+        case '%' : return 38;
+        case '*' : return 39;
+        case '+' : return 40;
+        case '-' : return 41;
+        case '.' : return 42;
+        case '/' : return 43;
+        case ':' : return 44;
+        default :
+          throw 'illegal char :' + c;
+        }
+      }
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qr8BitByte
+  //---------------------------------------------------------------------
+
+  var qr8BitByte = function(data) {
+
+    var _mode = QRMode.MODE_8BIT_BYTE;
+    var _data = data;
+    var _bytes = qrcode.stringToBytes(data);
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return _bytes.length;
+    };
+
+    _this.write = function(buffer) {
+      for (var i = 0; i < _bytes.length; i += 1) {
+        buffer.put(_bytes[i], 8);
+      }
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrKanji
+  //---------------------------------------------------------------------
+
+  var qrKanji = function(data) {
+
+    var _mode = QRMode.MODE_KANJI;
+    var _data = data;
+
+    var stringToBytes = qrcode.stringToBytesFuncs['SJIS'];
+    if (!stringToBytes) {
+      throw 'sjis not supported.';
+    }
+    !function(c, code) {
+      // self test for sjis support.
+      var test = stringToBytes(c);
+      if (test.length != 2 || ( (test[0] << 8) | test[1]) != code) {
+        throw 'sjis not supported.';
+      }
+    }('\u53cb', 0x9746);
+
+    var _bytes = stringToBytes(data);
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return ~~(_bytes.length / 2);
+    };
+
+    _this.write = function(buffer) {
+
+      var data = _bytes;
+
+      var i = 0;
+
+      while (i + 1 < data.length) {
+
+        var c = ( (0xff & data[i]) << 8) | (0xff & data[i + 1]);
+
+        if (0x8140 <= c && c <= 0x9FFC) {
+          c -= 0x8140;
+        } else if (0xE040 <= c && c <= 0xEBBF) {
+          c -= 0xC140;
+        } else {
+          throw 'illegal char at ' + (i + 1) + '/' + c;
+        }
+
+        c = ( (c >>> 8) & 0xff) * 0xC0 + (c & 0xff);
+
+        buffer.put(c, 13);
+
+        i += 2;
+      }
+
+      if (i < data.length) {
+        throw 'illegal char at ' + (i + 1);
+      }
+    };
+
+    return _this;
+  };
+
+  //=====================================================================
+  // GIF Support etc.
+  //
+
+  //---------------------------------------------------------------------
+  // byteArrayOutputStream
+  //---------------------------------------------------------------------
+
+  var byteArrayOutputStream = function() {
+
+    var _bytes = [];
+
+    var _this = {};
+
+    _this.writeByte = function(b) {
+      _bytes.push(b & 0xff);
+    };
+
+    _this.writeShort = function(i) {
+      _this.writeByte(i);
+      _this.writeByte(i >>> 8);
+    };
+
+    _this.writeBytes = function(b, off, len) {
+      off = off || 0;
+      len = len || b.length;
+      for (var i = 0; i < len; i += 1) {
+        _this.writeByte(b[i + off]);
+      }
+    };
+
+    _this.writeString = function(s) {
+      for (var i = 0; i < s.length; i += 1) {
+        _this.writeByte(s.charCodeAt(i) );
+      }
+    };
+
+    _this.toByteArray = function() {
+      return _bytes;
+    };
+
+    _this.toString = function() {
+      var s = '';
+      s += '[';
+      for (var i = 0; i < _bytes.length; i += 1) {
+        if (i > 0) {
+          s += ',';
+        }
+        s += _bytes[i];
+      }
+      s += ']';
+      return s;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // base64EncodeOutputStream
+  //---------------------------------------------------------------------
+
+  var base64EncodeOutputStream = function() {
+
+    var _buffer = 0;
+    var _buflen = 0;
+    var _length = 0;
+    var _base64 = '';
+
+    var _this = {};
+
+    var writeEncoded = function(b) {
+      _base64 += String.fromCharCode(encode(b & 0x3f) );
+    };
+
+    var encode = function(n) {
+      if (n < 0) {
+        // error.
+      } else if (n < 26) {
+        return 0x41 + n;
+      } else if (n < 52) {
+        return 0x61 + (n - 26);
+      } else if (n < 62) {
+        return 0x30 + (n - 52);
+      } else if (n == 62) {
+        return 0x2b;
+      } else if (n == 63) {
+        return 0x2f;
+      }
+      throw 'n:' + n;
+    };
+
+    _this.writeByte = function(n) {
+
+      _buffer = (_buffer << 8) | (n & 0xff);
+      _buflen += 8;
+      _length += 1;
+
+      while (_buflen >= 6) {
+        writeEncoded(_buffer >>> (_buflen - 6) );
+        _buflen -= 6;
+      }
+    };
+
+    _this.flush = function() {
+
+      if (_buflen > 0) {
+        writeEncoded(_buffer << (6 - _buflen) );
+        _buffer = 0;
+        _buflen = 0;
+      }
+
+      if (_length % 3 != 0) {
+        // padding
+        var padlen = 3 - _length % 3;
+        for (var i = 0; i < padlen; i += 1) {
+          _base64 += '=';
+        }
+      }
+    };
+
+    _this.toString = function() {
+      return _base64;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // base64DecodeInputStream
+  //---------------------------------------------------------------------
+
+  var base64DecodeInputStream = function(str) {
+
+    var _str = str;
+    var _pos = 0;
+    var _buffer = 0;
+    var _buflen = 0;
+
+    var _this = {};
+
+    _this.read = function() {
+
+      while (_buflen < 8) {
+
+        if (_pos >= _str.length) {
+          if (_buflen == 0) {
+            return -1;
+          }
+          throw 'unexpected end of file./' + _buflen;
+        }
+
+        var c = _str.charAt(_pos);
+        _pos += 1;
+
+        if (c == '=') {
+          _buflen = 0;
+          return -1;
+        } else if (c.match(/^\s$/) ) {
+          // ignore if whitespace.
+          continue;
+        }
+
+        _buffer = (_buffer << 6) | decode(c.charCodeAt(0) );
+        _buflen += 6;
+      }
+
+      var n = (_buffer >>> (_buflen - 8) ) & 0xff;
+      _buflen -= 8;
+      return n;
+    };
+
+    var decode = function(c) {
+      if (0x41 <= c && c <= 0x5a) {
+        return c - 0x41;
+      } else if (0x61 <= c && c <= 0x7a) {
+        return c - 0x61 + 26;
+      } else if (0x30 <= c && c <= 0x39) {
+        return c - 0x30 + 52;
+      } else if (c == 0x2b) {
+        return 62;
+      } else if (c == 0x2f) {
+        return 63;
+      } else {
+        throw 'c:' + c;
+      }
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // gifImage (B/W)
+  //---------------------------------------------------------------------
+
+  var gifImage = function(width, height) {
+
+    var _width = width;
+    var _height = height;
+    var _data = new Array(width * height);
+
+    var _this = {};
+
+    _this.setPixel = function(x, y, pixel) {
+      _data[y * _width + x] = pixel;
+    };
+
+    _this.write = function(out) {
+
+      //---------------------------------
+      // GIF Signature
+
+      out.writeString('GIF87a');
+
+      //---------------------------------
+      // Screen Descriptor
+
+      out.writeShort(_width);
+      out.writeShort(_height);
+
+      out.writeByte(0x80); // 2bit
+      out.writeByte(0);
+      out.writeByte(0);
+
+      //---------------------------------
+      // Global Color Map
+
+      // black
+      out.writeByte(0x00);
+      out.writeByte(0x00);
+      out.writeByte(0x00);
+
+      // white
+      out.writeByte(0xff);
+      out.writeByte(0xff);
+      out.writeByte(0xff);
+
+      //---------------------------------
+      // Image Descriptor
+
+      out.writeString(',');
+      out.writeShort(0);
+      out.writeShort(0);
+      out.writeShort(_width);
+      out.writeShort(_height);
+      out.writeByte(0);
+
+      //---------------------------------
+      // Local Color Map
+
+      //---------------------------------
+      // Raster Data
+
+      var lzwMinCodeSize = 2;
+      var raster = getLZWRaster(lzwMinCodeSize);
+
+      out.writeByte(lzwMinCodeSize);
+
+      var offset = 0;
+
+      while (raster.length - offset > 255) {
+        out.writeByte(255);
+        out.writeBytes(raster, offset, 255);
+        offset += 255;
+      }
+
+      out.writeByte(raster.length - offset);
+      out.writeBytes(raster, offset, raster.length - offset);
+      out.writeByte(0x00);
+
+      //---------------------------------
+      // GIF Terminator
+      out.writeString(';');
+    };
+
+    var bitOutputStream = function(out) {
+
+      var _out = out;
+      var _bitLength = 0;
+      var _bitBuffer = 0;
+
+      var _this = {};
+
+      _this.write = function(data, length) {
+
+        if ( (data >>> length) != 0) {
+          throw 'length over';
+        }
+
+        while (_bitLength + length >= 8) {
+          _out.writeByte(0xff & ( (data << _bitLength) | _bitBuffer) );
+          length -= (8 - _bitLength);
+          data >>>= (8 - _bitLength);
+          _bitBuffer = 0;
+          _bitLength = 0;
+        }
+
+        _bitBuffer = (data << _bitLength) | _bitBuffer;
+        _bitLength = _bitLength + length;
+      };
+
+      _this.flush = function() {
+        if (_bitLength > 0) {
+          _out.writeByte(_bitBuffer);
+        }
+      };
+
+      return _this;
+    };
+
+    var getLZWRaster = function(lzwMinCodeSize) {
+
+      var clearCode = 1 << lzwMinCodeSize;
+      var endCode = (1 << lzwMinCodeSize) + 1;
+      var bitLength = lzwMinCodeSize + 1;
+
+      // Setup LZWTable
+      var table = lzwTable();
+
+      for (var i = 0; i < clearCode; i += 1) {
+        table.add(String.fromCharCode(i) );
+      }
+      table.add(String.fromCharCode(clearCode) );
+      table.add(String.fromCharCode(endCode) );
+
+      var byteOut = byteArrayOutputStream();
+      var bitOut = bitOutputStream(byteOut);
+
+      // clear code
+      bitOut.write(clearCode, bitLength);
+
+      var dataIndex = 0;
+
+      var s = String.fromCharCode(_data[dataIndex]);
+      dataIndex += 1;
+
+      while (dataIndex < _data.length) {
+
+        var c = String.fromCharCode(_data[dataIndex]);
+        dataIndex += 1;
+
+        if (table.contains(s + c) ) {
+
+          s = s + c;
+
+        } else {
+
+          bitOut.write(table.indexOf(s), bitLength);
+
+          if (table.size() < 0xfff) {
+
+            if (table.size() == (1 << bitLength) ) {
+              bitLength += 1;
+            }
+
+            table.add(s + c);
+          }
+
+          s = c;
+        }
+      }
+
+      bitOut.write(table.indexOf(s), bitLength);
+
+      // end code
+      bitOut.write(endCode, bitLength);
+
+      bitOut.flush();
+
+      return byteOut.toByteArray();
+    };
+
+    var lzwTable = function() {
+
+      var _map = {};
+      var _size = 0;
+
+      var _this = {};
+
+      _this.add = function(key) {
+        if (_this.contains(key) ) {
+          throw 'dup key:' + key;
+        }
+        _map[key] = _size;
+        _size += 1;
+      };
+
+      _this.size = function() {
+        return _size;
+      };
+
+      _this.indexOf = function(key) {
+        return _map[key];
+      };
+
+      _this.contains = function(key) {
+        return typeof _map[key] != 'undefined';
+      };
+
+      return _this;
+    };
+
+    return _this;
+  };
+
+  var createDataURL = function(width, height, getPixel) {
+    var gif = gifImage(width, height);
+    for (var y = 0; y < height; y += 1) {
+      for (var x = 0; x < width; x += 1) {
+        gif.setPixel(x, y, getPixel(x, y) );
+      }
+    }
+
+    var b = byteArrayOutputStream();
+    gif.write(b);
+
+    var base64 = base64EncodeOutputStream();
+    var bytes = b.toByteArray();
+    for (var i = 0; i < bytes.length; i += 1) {
+      base64.writeByte(bytes[i]);
+    }
+    base64.flush();
+
+    return 'data:image/gif;base64,' + base64;
+  };
+
+  //---------------------------------------------------------------------
+  // returns qrcode function.
+
+  return qrcode;
+}();
+
+// multibyte support
+!function() {
+
+  qrcode.stringToBytesFuncs['UTF-8'] = function(s) {
+    // http://stackoverflow.com/questions/18729405/how-to-convert-utf8-string-to-byte-array
+    function toUTF8Array(str) {
+      var utf8 = [];
+      for (var i=0; i < str.length; i++) {
+        var charcode = str.charCodeAt(i);
+        if (charcode < 0x80) utf8.push(charcode);
+        else if (charcode < 0x800) {
+          utf8.push(0xc0 | (charcode >> 6),
+              0x80 | (charcode & 0x3f));
+        }
+        else if (charcode < 0xd800 || charcode >= 0xe000) {
+          utf8.push(0xe0 | (charcode >> 12),
+              0x80 | ((charcode>>6) & 0x3f),
+              0x80 | (charcode & 0x3f));
+        }
+        // surrogate pair
+        else {
+          i++;
+          // UTF-16 encodes 0x10000-0x10FFFF by
+          // subtracting 0x10000 and splitting the
+          // 20 bits of 0x0-0xFFFFF into two halves
+          charcode = 0x10000 + (((charcode & 0x3ff)<<10)
+            | (str.charCodeAt(i) & 0x3ff));
+          utf8.push(0xf0 | (charcode >>18),
+              0x80 | ((charcode>>12) & 0x3f),
+              0x80 | ((charcode>>6) & 0x3f),
+              0x80 | (charcode & 0x3f));
+        }
+      }
+      return utf8;
+    }
+    return toUTF8Array(s);
+  };
+
+}();
+
+(function (factory) {
+  if (typeof define === 'function' && define.amd) {
+      define([], factory);
+  } else if (typeof exports === 'object') {
+      module.exports = factory();
+  }
+}(function () {
+    return qrcode;
+}));
+
+</script>
+<script>
+(() => {
+'use strict';
+const qs = new URLSearchParams(location.search);
+const R = CONFIG.rounds, PH = ['lobby', ...R.map(r => r.key), 'summary'];
+const roundAt = i => R[i - 1] || null;
+const C = { paper:'#FBFBFA', cream:'#F5F5F3', ink:'#1A1A1A', dark:'#4A4A4A', mid:'#8A8A8A', light:'#E2E2DF',
+            cam:'#945947', camL:'#B1715B', camE:'#D29A84', clay:'#7E4233', green:'#2F6F48', red:'#A23F34', gold:'#E0B152' };
+const PAL = [
+  { b:'#B1715B', h:'#D29A84', s:'#945947' }, { b:'#6FA383', h:'#9CC4AB', s:'#4E8565' },
+  { b:'#E0B152', h:'#F0D08A', s:'#C4923A' }, { b:'#6F94BD', h:'#9DB9D8', s:'#52789F' },
+  { b:'#9A7AB5', h:'#BCA3D0', s:'#7C5E98' }, { b:'#DE94A8', h:'#EDBBC8', s:'#C2748A' },
+  { b:'#5FADA9', h:'#93CBC8', s:'#458E8A' }, { b:'#A9A9A4', h:'#CBCBC7', s:'#8A8A86' } ];
+const MONO = '"Space Mono",ui-monospace,Menlo,monospace', SERIF = '"Libre Baskerville",Georgia,serif';
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const WMAX = 96;
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x)), lerp = (a, b, t) => a + (b - a) * t;
+const whenLabel = v => { v = Math.round(v); return v >= WMAX ? '2035+' : MONTHS[v % 12] + ' ' + (2027 + (v / 12 | 0)); };
+const mean = a => a.reduce((s, x) => s + x, 0) / a.length;
+const quant = (a, q) => { const s = [...a].sort((x, y) => x - y), i = (s.length - 1) * q, l = Math.floor(i), u = Math.ceil(i); return s[l] + (s[u] - s[l]) * (i - l); };
+const sdev = a => { const m = mean(a); return Math.sqrt(mean(a.map(x => (x - m) ** 2))); };
+const rid = (n, abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ') => Array.from({ length: n }, () => abc[Math.random() * abc.length | 0]).join('');
+const plain = s => s.replace(/\*/g, '');
+const jget = k => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
+const jset = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+const ease = t => t < .5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+
+/* ================= realtime layer ================= */
+function loadScript(src) { return new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = no; document.head.append(s); }); }
+async function makeNet(room) {
+  if (CONFIG.firebase && CONFIG.firebase.databaseURL) {
+    const V = 'https://www.gstatic.com/firebasejs/10.14.1/';
+    await loadScript(V + 'firebase-app-compat.js'); await loadScript(V + 'firebase-database-compat.js');
+    firebase.initializeApp(CONFIG.firebase);
+    const db = firebase.database(), root = db.ref('rooms/' + room);
+    return {
+      live: true,
+      setState: s => root.child('state').set(s),
+      onState: cb => root.child('state').on('value', x => cb(x.val())),
+      setPlayer: (u, p) => root.child('players/' + u).update(p),
+      setVote: (u, k, v) => root.child('players/' + u + '/v/' + k).set(v),
+      onPlayers: cb => { const r = root.child('players'); r.on('child_added', x => cb(x.key, x.val())); r.on('child_changed', x => cb(x.key, x.val())); },
+      sendEmote: e => root.child('emotes').push(e),
+      onEmote: cb => root.child('emotes').on('child_added', x => { cb(x.val()); x.ref.remove(); }),
+      onConn: cb => db.ref('.info/connected').on('value', x => cb(!!x.val()))
+    };
+  }
+  // Demo transport: tabs of the same browser only.
+  const K = 'pulse-room-' + room, bc = new BroadcastChannel(K), subs = { state: [], player: [], emote: [] };
+  const load = () => jget(K) || {}, fire = m => subs[m.t].forEach(f => f(m));
+  bc.onmessage = e => fire(e.data);
+  const send = m => { bc.postMessage(m); fire(m); };
+  const pl = (u, fn) => { const d = load(); d.players = d.players || {}; const p = d.players[u] = d.players[u] || {}; fn(p); jset(K, d); send({ t: 'player', u, p }); };
+  return {
+    live: false,
+    setState: s => { const d = load(); d.state = s; jset(K, d); send({ t: 'state', s }); },
+    onState: cb => { subs.state.push(m => cb(m.s)); cb(load().state || null); },
+    setPlayer: (u, p) => pl(u, q => Object.assign(q, p)),
+    setVote: (u, k, v) => pl(u, q => { q.v = q.v || {}; q.v[k] = v; }),
+    onPlayers: cb => { subs.player.push(m => cb(m.u, m.p)); const d = load().players || {}; for (const u in d) cb(u, d[u]); },
+    sendEmote: e => send({ t: 'emote', e }),
+    onEmote: cb => subs.emote.push(m => cb(m.e)),
+    onConn: cb => cb(true)
+  };
+}
+
+/* ================= pixel critter ================= */
+const ORB = [
+  '....oooooo....', '..oobbbbbboo..', '.obhhbbbbbbbo.', '.obhbbbbbbbbo.',
+  'obbbbbbbbbbbbo', 'obbbbbbbbbbbbo', 'obbbbbbbbbbbbo', 'obbbbbbbbbbbso',
+  '.obbbbbbbbbso.', '.obbbbbbbbsso.', '..oobbbbssoo..', '....oooooo....' ];
+// cx = centre x, by = y of the ground under its feet, px = size of one pixel
+function drawOrb(g, cx, by, px, o) {
+  o = o || {};
+  const pal = PAL[(o.c | 0) % PAL.length], hop = Math.round(o.hop || 0), tilt = o.tilt || 0;
+  const look = clamp(Math.round(o.look || 0), -1, 1), face = o.face || 'norm', E = C.ink;
+  const x0 = Math.round(cx - 7 * px), yb = Math.round(by) - px - hop * px;
+  const P = (c, r, w, h, col) => { g.fillStyle = col; g.fillRect(x0 + (c + Math.round(tilt * (12 - r) / 4)) * px, yb - (12 - r) * px, w * px, h * px); };
+  if (o.alpha != null) g.globalAlpha = o.alpha;
+  if (!o.noShadow) { g.fillStyle = 'rgba(26,26,26,.13)'; const sw = hop ? 8 : 12; g.fillRect(Math.round(cx - sw * px / 2), Math.round(by), sw * px, px); }
+  for (let r = 0; r < 12; r++) { const row = ORB[r]; let c = 0; while (c < 14) { const ch = row[c]; if (ch === '.') { c++; continue; } let e = c; while (e < 14 && row[e] === ch) e++; P(c, r, e - c, 1, ch === 'o' ? E : ch === 'b' ? pal.b : ch === 'h' ? pal.h : pal.s); c = e; } }
+  const wk = o.walk != null ? Math.floor(o.walk) % 2 : -1;
+  if (wk !== 0) P(3, 12, 2, 1, E); if (wk !== 1) P(9, 12, 2, 1, E);
+  P(7, -1, 1, 1, E); P(7, -2, 1, 1, E); P(6, -4, 2, 2, o.bulb || E);
+  if (face === 'blink' || face === 'sleepy') { P(3, 6, 3, 1, E); P(8, 6, 3, 1, E); }
+  else if (face === 'happy') { for (const b of [3, 8]) { P(b, 6, 1, 1, E); P(b + 1, 5, 1, 1, E); P(b + 2, 6, 1, 1, E); } }
+  else if (face === 'dizzy') { for (const b of [3, 8]) { P(b, 5, 1, 1, E); P(b + 2, 5, 1, 1, E); P(b + 1, 6, 1, 1, E); P(b, 7, 1, 1, E); P(b + 2, 7, 1, 1, E); } }
+  else if (face === 'wide') { for (const b of [4, 9]) { P(b + look, 4, 2, 3, E); P(b + look, 4, 1, 1, '#fff'); } }
+  else { for (const b of [4, 9]) { P(b + look, 5, 2, 2, E); P(b + look, 5, 1, 1, '#fff'); } }
+  if (face === 'wide') P(6, 8, 2, 2, E);
+  else if (face === 'happy') { P(5, 8, 1, 1, E); P(6, 9, 2, 1, E); P(8, 8, 1, 1, E); }
+  else if (face === 'dizzy') { P(5, 9, 1, 1, E); P(6, 8, 1, 1, E); P(7, 9, 1, 1, E); P(8, 8, 1, 1, E); }
+  else if (face === 'sleepy') P(6, 8, 1, 1, E);
+  else P(6, 8, 2, 1, E);
+  if (face !== 'dizzy') { P(1, 7, 2, 1, 'rgba(190,70,70,.38)'); P(11, 7, 2, 1, 'rgba(190,70,70,.38)'); }
+  g.globalAlpha = 1;
+}
+function drawFx(g, cx, by, px, kind, T) {
+  const top = by - 13 * px;
+  if (kind === 'sweat') { const k = (T * 1.6) % 1; g.fillStyle = '#6F94BD'; g.fillRect(cx + 8 * px, top + px + k * 5 * px, px, 2 * px); g.fillRect(cx - 9 * px, top + 3 * px + ((k + .5) % 1) * 5 * px, px, 2 * px); }
+  if (kind === 'zzz') { g.fillStyle = C.dark; g.font = `700 ${px * 3}px ${MONO}`; g.textAlign = 'left'; for (let i = 0; i < 3; i++) { const k = (T * .5 + i / 3) % 1; g.globalAlpha = 1 - k; g.fillText('z', cx + 7 * px + k * 4 * px, top - k * 6 * px); } g.globalAlpha = 1; }
+  if (kind === 'spark') { g.fillStyle = C.gold; for (let i = 0; i < 4; i++) { const a = T * 2 + i * 1.57, on = Math.sin(T * 9 + i * 2) > 0; if (!on) continue; const x = cx + Math.cos(a) * 10 * px, y = top + 6 * px + Math.sin(a) * 8 * px; g.fillRect(x - px * 1.5, y - px / 2, px * 3, px); g.fillRect(x - px / 2, y - px * 1.5, px, px * 3); } }
+  if (kind === 'q') { g.fillStyle = C.ink; g.font = `700 ${px * 4}px ${MONO}`; g.textAlign = 'center'; g.fillText('?', cx, top - 5 * px + Math.sin(T * 4) * px); }
+}
+
+/* ================= BIG SCREEN ================= */
+async function startHost() {
+  document.body.className = 'host';
+  let room = localStorage.getItem('pulse-host-room');
+  if (!room || qs.has('new')) { room = rid(4); localStorage.setItem('pulse-host-room', room); if (qs.has('new')) history.replaceState(null, '', '?host'); }
+  const SK = 'pulse-host-' + room, saved = jget(SK) || {};
+  const H = { phase: saved.phase || 0, players: saved.players || {}, hist: saved.hist || {}, marks: saved.marks || {}, el: saved.el || {}, msgs: saved.msgs !== false, bigQR: false };
+  const disp = {}, D = u => disp[u] || (disp[u] = { x: {}, l: null, ph: Math.random() * 6.28, moved: -9, dir: 0, wx: Math.random(), wt: Math.random(), wn: 0, born: performance.now() / 1000 });
+  const floats = [], sm = {}; let T = 0, dt = .016, trans = -9, bubble = null, mood = null, lastSay = 0, nd = { p: .5, v: 0 }, bots = [];
+  const net = await makeNet(room);
+  const joinUrl = location.href.split(/[?#]/)[0] + '?r=' + room, showUrl = joinUrl.replace(/^https?:\/\//, '').replace(/^file:.*\//, '');
+  const qr = qrcode(0, 'M'); qr.addData(joinUrl); qr.make(); const QN = qr.getModuleCount();
+
+  const cv = document.createElement('canvas'); cv.id = 'stage'; document.body.append(cv); const g = cv.getContext('2d');
+  const fit = () => { const d = Math.min(2, devicePixelRatio || 1); cv.width = innerWidth * d; cv.height = innerHeight * d; }; fit(); addEventListener('resize', fit);
+
+  const vals = k => Object.values(H.players).map(p => p.v[k]).filter(v => v != null);
+  const count = () => Object.keys(H.players).length;
+  const save = () => jset(SK, { phase: H.phase, players: H.players, hist: H.hist, marks: H.marks, el: H.el, msgs: H.msgs });
+  const say = (t, m, dur = 4.5) => { bubble = { t, until: T + dur }; mood = m ? { m, until: T + dur } : null; lastSay = T; };
+
+  function onPlayer(u, p) {
+    if (!p || !p.n) return;
+    let q = H.players[u];
+    if (!q) { q = H.players[u] = { n: '', c: 0, v: {}, mv: {}, em: 0, j: count() }; if (H.phase === 0 && T > 1) say('Welcome, ' + String(p.n).slice(0, 14) + '!', 'happy', 3); }
+    q.n = String(p.n).slice(0, 14); q.c = p.c | 0;
+    const nv = p.v || {}, cur = PH[H.phase];
+    for (const k in nv) { const v = +nv[k]; if (!isFinite(v)) continue;
+      if (q.v[k] !== v) { const d = D(u); d.dir = Math.sign(v - (q.v[k] == null ? v : q.v[k])); d.moved = T; if (q.v[k] != null && k === cur) q.mv[k] = (q.mv[k] || 0) + Math.abs(v - q.v[k]); }
+      q.v[k] = v; }
+  }
+  function onEmote(e) {
+    if (!e) return; const p = H.players[e.u]; if (p) p.em = (p.em || 0) + 1;
+    if (e.m && !H.msgs) return; if (floats.length > 60) floats.shift();
+    floats.push({ x: 160 + Math.random() * 1500, born: T, text: e.m ? String(e.m).slice(0, 60) : String(e.e).slice(0, 4), msg: !!e.m, name: p ? p.n : '', wob: Math.random() * 6 });
+  }
+  net.onPlayers(onPlayer); net.onEmote(onEmote);
+  function setPhase(i) { i = clamp(i, 0, PH.length - 1); if (i !== H.phase) { trans = T; nd = { p: .5, v: 0 }; } H.phase = i; net.setState({ i, msgs: H.msgs, ts: Date.now() }); save();
+    const r = roundAt(i); bubble = null; if (r) say(vals(r.key).length ? 'Still time to change your mind' : 'Phones out. Slide to vote!'); else if (i) say('GG, everyone', 'happy', 8); }
+  function mark(l) { const r = roundAt(H.phase); if (!r) return; const a = H.marks[r.key] = H.marks[r.key] || []; a.push({ t: H.el[r.key] || 0, l: l || '★' + (a.length + 1) }); save(); }
+
+  setInterval(() => {
+    const r = roundAt(H.phase); if (!r) return;
+    const k = r.key, a = vals(k), t = H.el[k] = (H.el[k] || 0) + 1;
+    if (!a.length) return;
+    const hs = H.hist[k] = H.hist[k] || [];
+    hs.push({ t, m: +(r.type === 'when' ? quant(a, .5) : mean(a)).toFixed(2), lo: +quant(a, .25).toFixed(1), hi: +quant(a, .75).toFixed(1), n: a.length });
+    if (T - lastSay < 9 || a.length < 3) return;
+    const old = hs[Math.max(0, hs.length - 11)].m, now = hs[hs.length - 1].m, sp = quant(a, .75) - quant(a, .25);
+    if (r.type === 'lean') {
+      if (Math.abs(now - old) > 7) say('Whoa, big swing!', 'wide');
+      else if (sdev(a) > 31) say('This room is SPLIT', 'dizzy');
+      else if (sdev(a) < 9) say('Consensus?!', 'happy');
+      else if (Math.abs(now - 50) < 3) say('Dead even…');
+      else if (Math.random() < .12) say(['Persuade me', 'Slide if that landed', 'Hmm.', 'Bold claim'][Math.random() * 4 | 0]);
+    } else {
+      if (Math.abs(now - old) > 5) say('The median is on the move', 'wide');
+      else if (sp > 44) say('Years apart. Love it', 'dizzy');
+      else if (sp < 9) say('Suspiciously aligned…', 'happy');
+    }
+  }, 1000);
+  setInterval(save, 3000);
+
+  /* ----- demo audience ----- */
+  const BN = ['Punter','Porter','Bedder','Fresher','Proctor','Tripos','Supo','Bop','Formal','Mathmo','NatSci','CompSci','Rower','Cox','Blade','Gyp','Plodge','Backs','Granta','Mill','Fitz','Girton','Bridge','Bumps','Gown','Don','Fellow','Scholar','Punt','Swan'];
+  function addBots(n) { for (let i = 0; i < n; i++) { const u = 'bot' + rid(5), b = { u, bias: (Math.random() + Math.random() + Math.random() - 1.5) / 1.5, v: {} }; bots.push(b); onPlayer(u, { n: BN[(bots.length - 1) % BN.length], c: Math.random() * 8 | 0, v: {} }); } }
+  setInterval(() => {
+    const r = roundAt(H.phase);
+    for (const b of bots) {
+      if (Math.random() < .012) onEmote({ u: b.u, e: CONFIG.emotes[Math.random() * CONFIG.emotes.length | 0] });
+      if (Math.random() < .0015) onEmote({ u: b.u, m: ['source?', 'cope', 'this is the crux', 'METR graph go brr', 'but compute though'][Math.random() * 5 | 0] });
+      if (!r) continue; const k = r.key, w = r.type === 'when', max = w ? WMAX : 100;
+      const tgt = w ? 38 + b.bias * 34 + (r.compare ? 9 : 0) : 50 + b.bias * 34 + 26 * Math.sin((H.el[k] || 0) / 17 + R.indexOf(r));
+      if (b.v[k] == null) { if (Math.random() < .07) b.v[k] = Math.round(clamp(tgt + (Math.random() - .5) * 20, 0, max)); else continue; }
+      else if (Math.random() < .22) b.v[k] = Math.round(clamp(b.v[k] + (tgt - b.v[k]) * .12 + (Math.random() - .5) * 5, 0, max)); else continue;
+      onPlayer(b.u, { n: H.players[b.u].n, c: H.players[b.u].c, v: { [k]: b.v[k] } });
+    }
+  }, 180);
+
+  /* ----- controls ----- */
+  const bar = document.createElement('div'); bar.id = 'bar'; document.body.append(bar);
+  const btn = (label, key, fn, cls) => { const b = document.createElement('button'); b.innerHTML = label + (key ? `<kbd>${key}</kbd>` : ''); if (cls) b.className = cls; b.onclick = () => { fn(); b.blur(); }; bar.append(b); };
+  const act = {
+    prev: () => setPhase(H.phase - 1), next: () => setPhase(H.phase + 1), mark: () => mark(), sk: () => mark('Sceptic'), pro: () => mark('Pro'),
+    bots: () => addBots(8), qr: () => { H.bigQR = !H.bigQR; }, msgs: () => { H.msgs = !H.msgs; net.setState({ i: H.phase, msgs: H.msgs, ts: Date.now() }); say(H.msgs ? 'Messages on' : 'Messages off'); },
+    full: () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(),
+    fresh: () => { if (confirm('Start a brand new room? This clears everything on screen.')) location.search = '?host&new'; }
+  };
+  btn('◀ Back', '←', act.prev); btn('Next ▶', '→', act.next, 'pri'); btn('Mark', 'M', act.mark); btn('Sceptic up', '1', act.sk); btn('Pro up', '2', act.pro);
+  btn('Big QR', 'Q', act.qr); btn('Messages', 'X', act.msgs); btn('+8 bots', 'B', act.bots); btn('Fullscreen', 'F', act.full); btn('New room', '', act.fresh);
+  let hideT; const wake = () => { bar.classList.remove('hide'); clearTimeout(hideT); hideT = setTimeout(() => bar.classList.add('hide'), 2500); }; addEventListener('mousemove', wake); wake();
+  addEventListener('keydown', e => { const k = e.key.toLowerCase();
+    if (k === 'arrowright' || k === ' ' || k === 'pagedown') act.next(); else if (k === 'arrowleft' || k === 'pageup') act.prev();
+    else if (k === 'm') act.mark(); else if (k === '1') act.sk(); else if (k === '2') act.pro(); else if (k === 'q') act.qr();
+    else if (k === 'x') act.msgs(); else if (k === 'b') act.bots(); else if (k === 'f') act.full(); else return; e.preventDefault(); });
+
+  /* ----- drawing helpers ----- */
+  function tx(s, x, y, o) { o = o || {}; g.font = `${o.it ? 'italic ' : ''}${o.w || 400} ${o.s || 24}px ${o.f || MONO}`; g.fillStyle = o.c || C.ink; g.textAlign = o.a || 'left'; g.textBaseline = 'alphabetic'; if ('letterSpacing' in g) g.letterSpacing = (o.ls || 0) + 'px'; g.fillText(s, x, y); const w = g.measureText(s).width; if ('letterSpacing' in g) g.letterSpacing = '0px'; return w; }
+  function card(x, y, w, h, fill, sh) { sh = sh == null ? 8 : sh; g.fillStyle = C.ink; g.fillRect(x + sh, y + sh, w, h); g.fillStyle = fill || C.cream; g.fillRect(x, y, w, h); g.strokeStyle = C.ink; g.lineWidth = 3; g.strokeRect(x + 1.5, y + 1.5, w - 3, h - 3); }
+  function rich(str, x, y, maxW, size, align) {
+    const toks = []; str.split(/(\*[^*]+\*)/).forEach(seg => { if (!seg) return; const acc = seg[0] === '*'; (acc ? seg.slice(1, -1) : seg).split(/\s+/).filter(Boolean).forEach(t => toks.push({ t, acc })); });
+    const F = a => `${a ? 'italic ' : ''}400 ${size}px ${SERIF}`; g.font = F(false); const sp = g.measureText(' ').width, lines = [[]]; let w = 0;
+    for (const k of toks) { g.font = F(k.acc); k.w = g.measureText(k.t).width; if (w + k.w > maxW && lines[lines.length - 1].length) { lines.push([]); w = 0; } lines[lines.length - 1].push(k); w += k.w + sp; }
+    g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+    lines.forEach((ln, i) => { let cx = x; if (align === 'center') cx = x - (ln.reduce((s, k) => s + k.w + sp, -sp)) / 2; for (const k of ln) { g.font = F(k.acc); g.fillStyle = k.acc ? C.cam : C.ink; g.fillText(k.t, cx, y + i * size * 1.16); cx += k.w + sp; } });
+    return lines.length;
+  }
+  function drawQR(x, y, size) { const m = size / (QN + 2); g.fillStyle = '#fff'; g.fillRect(x, y, size, size); g.fillStyle = C.ink; for (let r = 0; r < QN; r++) for (let c = 0; c < QN; c++) if (qr.isDark(r, c)) g.fillRect(x + (c + 1) * m, y + (r + 1) * m, m + .4, m + .4); }
+  function speech(text, x, y, side) { g.font = `700 24px ${MONO}`; const w = g.measureText(text).width + 36, h = 54, bx = clamp(side === 'l' ? x - w : x, 20, 1900 - w), by = y - h;
+    g.fillStyle = C.ink; g.fillRect(bx + 6, by + 6, w, h); g.fillStyle = C.paper; g.fillRect(bx, by, w, h); g.strokeStyle = C.ink; g.lineWidth = 3; g.strokeRect(bx + 1.5, by + 1.5, w - 3, h - 3);
+    g.fillStyle = C.ink; const tx0 = side === 'l' ? x - 26 : x + 14; g.fillRect(tx0, y, 12, 8); g.fillRect(tx0 + (side === 'l' ? 6 : 0), y + 8, 6, 8);
+    g.textAlign = 'left'; g.textBaseline = 'alphabetic'; g.fillText(text, bx + 18, by + 35); }
+  function pip(cx, by, px, o, side) {
+    o = o || {}; const m = mood && T < mood.until ? mood.m : null, blink = (T % 3.7) < .13;
+    drawOrb(g, cx, by, px, Object.assign({ c: 0, bulb: C.gold, face: m || (blink ? 'blink' : 'norm'), hop: m === 'happy' || m === 'wide' ? Math.abs(Math.sin(T * 9)) * 1.6 : 0 }, o));
+    if (m === 'dizzy') drawFx(g, cx, by, px, 'sweat', T); if (m === 'happy') drawFx(g, cx, by, px, 'spark', T);
+    if (bubble && T < bubble.until) { const s = side || (cx > 1100 ? 'l' : 'r'); speech(bubble.t, cx + (s === 'l' ? -8 * px : 8 * px), by - 9 * px, s); }
+  }
+  function crowd(key, x0, x1, gy, px, max, names, only) {
+    const ids = Object.keys(H.players).filter(u => H.players[u].v[key] != null).sort((a, b) => H.players[a].j - H.players[b].j);
+    const cell = 15 * px, placed = [];
+    for (const u of ids) { const p = H.players[u], d = D(u), tgt = x0 + (x1 - x0) * p.v[key] / max;
+      if (d.x[key] == null) d.x[key] = tgt; d.x[key] += (tgt - d.x[key]) * Math.min(1, dt * 9);
+      let L = 0; while (placed.some(q => q.L === L && Math.abs(q.x - d.x[key]) < cell)) L++; placed.push({ x: d.x[key], L });
+      d.l = d.l == null ? L : d.l + (L - d.l) * Math.min(1, dt * 9);
+      const mv = T - d.moved < .7, y = gy - d.l * 13 * px;
+      drawOrb(g, d.x[key], y, px, { c: p.c, hop: mv ? Math.abs(Math.sin(T * 16 + d.ph)) * 1.6 : 0, look: mv ? d.dir : 0, tilt: mv ? d.dir * .7 : 0, face: mv ? 'wide' : ((T + d.ph * 2) % 4.3) < .13 ? 'blink' : 'norm', noShadow: d.l > .3 });
+      if (names && d.l < .5) { g.font = `700 14px ${MONO}`; g.textAlign = 'center'; g.lineWidth = 4; g.strokeStyle = C.paper; g.strokeText(p.n, d.x[key], gy + 26 + (placed.length % 2) * 0); }
+    }
+    return ids.length;
+  }
+  function graph(x, y, w, h, key, o) {
+    const hs = H.hist[key] || [], N = o.upto != null ? Math.max(0, Math.floor(hs.length * o.upto)) : hs.length;
+    const tmax = Math.max(o.minT || 60, hs.length ? hs[hs.length - 1].t : 0), X = t => x + w * t / tmax, Y = v => y + h - h * v / o.max;
+    g.fillStyle = C.light; for (let i = 0; i <= 4; i++) g.fillRect(x, Math.round(y + h * i / 4) - 1, w, 2);
+    if (o.mid) { g.fillStyle = C.mid; for (let i = 0; i < w; i += 16) g.fillRect(x + i, y + h / 2 - 1, 8, 2); }
+    g.fillStyle = C.ink; g.fillRect(x - 3, y, 3, h + 3); g.fillRect(x - 3, y + h, w + 3, 3);
+    for (const m of (o.marks && H.marks[key]) || []) { if (o.upto != null && hs.length && m.t > (hs[Math.max(0, N - 1)] || { t: 0 }).t) continue; const mx = X(m.t); g.fillStyle = C.cam; for (let i = 0; i < h; i += 14) g.fillRect(mx - 1, y + i, 3, 8);
+      if (!o.small) { g.font = `700 15px ${MONO}`; const tw = g.measureText(m.l).width + 12; g.fillRect(mx - 1, y - 2, tw, 22); g.fillStyle = '#fff'; g.textAlign = 'left'; g.fillText(m.l, mx + 5, y + 14); } }
+    if (N > 1) {
+      if (o.band) { g.fillStyle = 'rgba(148,89,71,.16)'; g.beginPath(); for (let i = 0; i < N; i++) g.lineTo(X(hs[i].t), Y(hs[i].hi)); for (let i = N - 1; i >= 0; i--) g.lineTo(X(hs[i].t), Y(hs[i].lo)); g.fill(); }
+      const th = o.small ? 4 : 6; g.fillStyle = C.ink; let px = X(hs[0].t), py = Y(hs[0].m);
+      for (let i = 1; i < N; i++) { const nx = X(hs[i].t), ny = Y(hs[i].m); g.fillRect(px, py - th / 2, nx - px + .5, th); g.fillRect(nx - th / 2, Math.min(py, ny) - th / 2, th, Math.abs(ny - py) + th); px = nx; py = ny; }
+      const s = (o.small ? 12 : 18) + Math.sin(T * 6) * 3; g.fillStyle = C.ink; g.fillRect(px - s / 2 - 3, py - s / 2 - 3, s + 6, s + 6); g.fillStyle = C.cam; g.fillRect(px - s / 2, py - s / 2, s, s);
+    } else if (!o.small) tx('waiting for the first sliders…', x + w / 2, y + h / 2 - 16, { a: 'center', s: 20, c: C.mid });
+  }
+  function header(r) { const w = tx(CONFIG.org, 80, 84, { w: 700, s: 20, ls: 3, c: C.cam }); tx('/  ' + r.title.toUpperCase(), 80 + w + 24, 84, { w: 700, s: 20, ls: 3, c: C.dark }); rich(r.q, 80, 176, 1500, 58); }
+  function qrPanel() { card(1652, 36, 232, 300, C.paper); drawQR(1668, 52, 200); tx('JOIN · ' + room, 1768, 288, { a: 'center', w: 700, s: 24, ls: 2 }); tx(count() + ' in the room', 1768, 318, { a: 'center', s: 17, c: C.dark }); }
+
+  /* ----- scenes ----- */
+  function lobby() {
+    tx(CONFIG.org, 120, 150, { w: 700, s: 24, ls: 4, c: C.cam });
+    const parts = CONFIG.eventName.split(/(\*[^*]+\*)/).filter(Boolean); let y = 310;
+    for (const p of parts) { const acc = p[0] === '*'; tx((acc ? p.slice(1, -1) : p).trim(), 120, y, { f: SERIF, s: 124, it: acc, c: acc ? C.cam : C.ink, ls: -3 }); y += 142; }
+    tx('Scan the code. Pick a critter. Slide your opinion.', 120, y - 40, { s: 28, c: C.dark });
+    tx('No app, no login  ·  ' + showUrl, 120, y + 8, { s: 22, c: C.mid });
+    // sun, after the hero illustration's radiating lines
+    g.save(); g.translate(1150, 170); g.fillStyle = C.camE; for (let i = 0; i < 12; i++) { g.rotate(Math.PI / 6); g.fillRect(52 + Math.sin(T * 2 + i) * 5, -3, 26, 6); } g.fillStyle = C.gold; g.fillRect(-32, -32, 64, 64); g.fillStyle = C.ink; g.lineWidth = 4; g.strokeStyle = C.ink; g.strokeRect(-32, -32, 64, 64); g.restore();
+    card(1340, 110, 460, 560, C.paper, 12); drawQR(1360, 130, 420); tx('ROOM ' + room, 1570, 606, { a: 'center', w: 700, s: 40, ls: 8 }); tx(count() + ' in the room', 1570, 646, { a: 'center', s: 22, c: C.dark });
+    // bank, critters, river
+    const gy = 880; g.fillStyle = C.ink; g.fillRect(0, gy, 1920, 4); for (let x = 30; x < 1920; x += 97) { g.fillRect(x, gy - 10, 3, 10); g.fillRect(x + 7, gy - 16, 3, 16); g.fillRect(x + 14, gy - 8, 3, 8); }
+    const ids = Object.keys(H.players).sort((a, b) => H.players[a].j - H.players[b].j), px = ids.length > 30 ? 4 : 5;
+    for (const u of ids) { const p = H.players[u], d = D(u); if (T > d.wn) { d.wt = Math.random(); d.wn = T + 2 + Math.random() * 5; }
+      const dx = d.wt - d.wx, walking = Math.abs(dx) > .004; if (walking) d.wx += Math.sign(dx) * dt * .035; const age = T - d.born, x = 80 + d.wx * 1760;
+      drawOrb(g, x, gy, px, { c: p.c, walk: walking ? T * 7 + d.ph : null, look: walking ? Math.sign(dx) : 0, hop: age < .8 ? Math.abs(Math.sin(age * 12)) * 4 : 0, face: age < 1.2 ? 'happy' : ((T + d.ph * 2) % 4.3) < .13 ? 'blink' : 'norm' });
+      tx(p.n, x, gy - 17 * px - 6 - (p.j % 3) * 19, { a: 'center', w: 700, s: 15 }); }
+    if (!ids.length) tx('be the first one in →', 1300, gy - 30, { a: 'right', s: 24, c: C.mid });
+    for (let r = 0; r < 4; r++) { g.fillStyle = r % 2 ? C.light : C.camE; const off = (T * (18 + r * 9) * (r % 2 ? -1 : 1)) % 120; for (let x = -120; x < 2040; x += 120) g.fillRect(x + off + r * 37, 925 + r * 40, 44, 5); }
+    const bx = ((T * 55) % 2500) - 400, by = 990 + Math.round(Math.sin(T * 2) * 3);
+    g.fillStyle = C.ink; for (let i = 0; i < 30; i++) g.fillRect(bx + 250 + i * 2.2, by - 150 + i * 8, 7, 9);
+    pip(bx + 130, by, 6, { look: 1, tilt: Math.sin(T * 2) * .5, face: ids.length ? undefined : 'sleepy', noShadow: true }, 'r');
+    g.fillStyle = C.ink; g.fillRect(bx - 6, by - 6, 372, 36); g.fillStyle = C.clay; g.fillRect(bx, by, 360, 24); g.fillStyle = C.camL; g.fillRect(bx, by, 360, 7); g.fillStyle = C.ink; g.fillRect(bx - 18, by - 16, 24, 18); g.fillRect(bx + 354, by - 10, 22, 12);
+  }
+  function sceneWhen(r) {
+    header(r); qrPanel();
+    const X0 = 150, X1 = 1770, GY = 740, xv = v => X0 + (X1 - X0) * v / WMAX, a = vals(r.key), n = a.length, px = n <= 16 ? 5 : n <= 38 ? 4 : 3;
+    for (let y = 0; y < 8; y += 2) { g.fillStyle = 'rgba(148,89,71,.05)'; g.fillRect(xv(y * 12), 380, xv(12) - xv(0), GY - 380); }
+    let med = null, q1, q3;
+    if (n) { med = quant(a, .5); q1 = quant(a, .25); q3 = quant(a, .75); sm[r.key] = sm[r.key] == null ? med : sm[r.key] + (med - sm[r.key]) * Math.min(1, dt * 5);
+      g.fillStyle = C.camE; for (let y = 380; y < GY + 110; y += 22) g.fillRect(xv(sm[r.key]) - 3, y, 6, 12); }
+    crowd(r.key, X0, X1, GY, px, WMAX, false);
+    g.fillStyle = C.ink; g.fillRect(X0 - 50, GY, X1 - X0 + 100, 5);
+    for (let y = 0; y <= 8; y++) { const x = xv(y * 12); g.fillStyle = C.ink; g.fillRect(x - 2, GY, 4, 20); tx(y === 8 ? '2035+' : String(2027 + y), x, GY + 52, { a: 'center', w: 700, s: 24 }); if (y < 8) for (let q = 1; q < 4; q++) g.fillRect(xv(y * 12 + q * 3) - 1, GY, 2, 10); }
+    if (n) { g.fillStyle = C.cam; g.fillRect(xv(q1), GY - 2, xv(q3) - xv(q1), 9); }
+    if (r.compare) { const b = vals(r.compare); if (b.length) { tx('BEFORE', 30, GY + 90, { s: 14, w: 700, c: C.mid, ls: 1 }); g.strokeStyle = C.mid; g.lineWidth = 2; for (const v of b) g.strokeRect(xv(v) - 5, GY + 74, 10, 10); const bm = xv(quant(b, .5)); g.fillStyle = C.ink; g.fillRect(bm - 8, GY + 71, 16, 16); } }
+    const wait = count() - n;
+    if (n) {
+      const sx = xv(sm[r.key]), by = 950; g.fillStyle = C.ink; g.fillRect(sx + 44, by - 150, 5, 150); g.fillStyle = C.cam; for (let i = 0; i < 6; i++) g.fillRect(sx + 49, by - 150 + i * 6, 54 - Math.abs(i - 2.5) * 14 + Math.sin(T * 6 + i) * 4, 6);
+      pip(sx, by, 7, { look: Math.sign(med - sm[r.key]) * (Math.abs(med - sm[r.key]) > .3 ? 1 : 0), walk: Math.abs(med - sm[r.key]) > .3 ? T * 8 : null });
+      tx('ROOM MEDIAN', 80, 1004, { s: 17, w: 700, ls: 2, c: C.dark }); tx(whenLabel(med), 80, 1058, { f: SERIF, s: 54 });
+      tx('MIDDLE HALF OF THE ROOM', 520, 1004, { s: 17, w: 700, ls: 2, c: C.dark }); tx(whenLabel(q1) + ' to ' + whenLabel(q3), 520, 1052, { s: 30, w: 700, c: C.cam });
+    } else { pip(960, 950, 7, { face: 'sleepy' }); drawFx(g, 960, 950, 7, 'zzz', T); }
+    tx(n + ' answered' + (wait > 0 ? '  ·  ' + wait + ' still thinking' : ''), 1260, 1052, { a: 'right', s: 18, c: C.mid });
+    tx('MEDIAN OVER TIME', 1320, 990, { s: 14, w: 700, ls: 2, c: C.dark }); graph(1320, 1000, 520, 56, r.key, { max: WMAX, small: true, minT: 30 });
+  }
+  function sceneLean(r) {
+    header(r); qrPanel();
+    const a = vals(r.key), n = a.length, m = n ? mean(a) : 50, cx = 460, cy = 690, rad = 320;
+    nd.v += ((m / 100 - nd.p) * 60 - nd.v * 7) * dt; nd.p = clamp(nd.p + nd.v * dt, -.03, 1.03);
+    const NB = 41; for (let i = 0; i < NB; i++) { const f = i / (NB - 1), ang = Math.PI * (1 - f), on = (f - .5) * (nd.p - .5) > 0 && Math.abs(f - .5) <= Math.abs(nd.p - .5) + .012;
+      g.save(); g.translate(cx + Math.cos(ang) * rad, cy - Math.sin(ang) * rad); g.rotate(-ang); g.fillStyle = i === 20 ? C.ink : f < .5 ? C.green : C.cam; g.globalAlpha = i === 20 || on ? 1 : .2; g.fillRect(-26, -9, on ? 60 : 46, 18); g.restore(); }
+    g.globalAlpha = 1; const na = Math.PI * (1 - nd.p), col = nd.p < .5 ? C.green : C.cam;
+    for (let d = 40; d < rad - 50; d += 11) { g.fillStyle = C.ink; g.fillRect(cx + Math.cos(na) * d - 6, cy - Math.sin(na) * d - 6, 12, 12); }
+    g.fillStyle = C.ink; g.fillRect(cx + Math.cos(na) * (rad - 44) - 13, cy - Math.sin(na) * (rad - 44) - 13, 26, 26); g.fillStyle = col; g.fillRect(cx + Math.cos(na) * (rad - 44) - 8, cy - Math.sin(na) * (rad - 44) - 8, 16, 16);
+    pip(cx, cy + 52, 7, { tilt: (nd.p - .5) * 5, look: Math.abs(nd.p - .5) > .04 ? Math.sign(nd.p - .5) : 0, face: n ? undefined : 'sleepy' }, 'r');
+    if (!n) drawFx(g, cx, cy + 52, 7, 'zzz', T);
+    tx(r.left, 110, 748, { w: 700, s: 26, c: C.green }); tx(r.right, 810, 748, { a: 'right', w: 700, s: 26, c: C.cam });
+    const nl = a.filter(v => v < 45).length, nr = a.filter(v => v > 55).length;
+    tx('◀ ' + nl, 110, 800, { s: 24, w: 700 }); tx((n - nl - nr) + ' on the fence', cx, 800, { a: 'center', s: 20, c: C.dark }); tx(nr + ' ▶', 810, 800, { a: 'right', s: 24, w: 700 });
+    const lean = Math.abs(m - 50) < 3 ? 'DEAD EVEN' : 'LEANING: ' + (m < 50 ? r.left : r.right).toUpperCase();
+    tx(n ? lean : 'NO VOTES YET', cx, 332, { a: 'center', w: 700, s: 22, ls: 2, c: !n || Math.abs(m - 50) < 3 ? C.dark : col });
+    card(900, 300, 700, 500, C.cream); tx('ROOM AVERAGE, LIVE', 930, 340, { s: 15, w: 700, ls: 2, c: C.dark });
+    const el = H.el[r.key] || 0; tx((el / 60 | 0) + ':' + String(el % 60).padStart(2, '0'), 1570, 340, { a: 'right', s: 15, w: 700, c: C.dark });
+    tx(r.right, 1570, 376, { a: 'right', s: 16, w: 700, c: C.cam }); tx(r.left, 1570, 776, { a: 'right', s: 16, w: 700, c: C.green });
+    graph(940, 384, 630, 372, r.key, { max: 100, band: true, marks: true, mid: true, minT: 90 });
+    const X0 = 150, X1 = 1770, GY = 1030; g.fillStyle = C.ink; g.fillRect(X0 - 50, GY, X1 - X0 + 100, 5); g.fillRect((X0 + X1) / 2 - 2, GY, 4, 16);
+    g.fillStyle = C.green; g.fillRect(X0 - 50, GY + 5, 60, 8); g.fillStyle = C.cam; g.fillRect(X1 - 10, GY + 5, 60, 8);
+    crowd(r.key, X0, X1, GY, 3, 100, false);
+    if (count() - n > 0) tx((count() - n) + ' still thinking', 1840, 1066, { a: 'right', s: 16, c: C.mid });
+    // the area right of the graph: who's talking + marks legend
+    card(1640, 370, 244, 430, C.paper, 6); tx('HOST KEYS', 1662, 408, { s: 14, w: 700, ls: 2, c: C.dark });
+    [['1', 'sceptic speaks'], ['2', 'pro speaks'], ['M', 'drop a marker'], ['→', 'next round']].forEach((k, i) => { g.fillStyle = C.ink; g.fillRect(1662, 428 + i * 44, 30, 30); tx(k[0], 1677, 450 + i * 44, { a: 'center', s: 16, w: 700, c: '#fff' }); tx(k[1], 1704, 450 + i * 44, { s: 15, c: C.dark }); });
+    const ms = H.marks[r.key] || []; tx(ms.length + ' marker' + (ms.length === 1 ? '' : 's') + ' so far', 1662, 640, { s: 15, c: C.mid });
+    tx('Slide whenever', 1662, 716, { s: 17, w: 700, c: C.cam }); tx('an argument lands.', 1662, 742, { s: 17, w: 700, c: C.cam }); tx('Slide back if not.', 1662, 768, { s: 17, c: C.dark });
+  }
+  function summary() {
+    tx(CONFIG.org, 80, 84, { w: 700, s: 20, ls: 3, c: C.cam }); rich('How the room *moved*', 80, 160, 1400, 64);
+    pip(1790, 170, 6, { face: 'happy', hop: Math.abs(Math.sin(T * 7)) * 2 }, 'l'); drawFx(g, 1790, 170, 6, 'spark', T);
+    const cyc = (T % 10) / 10, wr = R.filter(r => r.type === 'when'), after = wr.find(r => r.compare) || wr[wr.length - 1], before = after && after.compare ? R.find(r => r.key === after.compare) : null;
+    card(80, 200, 900, 590, C.cream);
+    if (after) {
+      const kb = before ? before.key : after.key, ka = after.key, k = before ? ease(clamp((cyc - .2) / .35, 0, 1)) : 1, X0 = 140, X1 = 920, GY = 600, xv = v => X0 + (X1 - X0) * v / WMAX;
+      tx(plain(after.q).replace(/^So,\s*/i, '').replace(/^./, c => c.toUpperCase()), 110, 252, { f: SERIF, s: 30 });
+      if (before) { const lab = k < .5 ? 'BEFORE' : 'AFTER'; g.fillStyle = k < .5 ? C.dark : C.cam; g.fillRect(790, 222, 160, 40); tx(lab, 870, 250, { a: 'center', w: 700, s: 20, ls: 3, c: '#fff' }); }
+      g.fillStyle = C.ink; g.fillRect(X0 - 30, GY, X1 - X0 + 60, 4); for (let y = 0; y <= 8; y++) { g.fillRect(xv(y * 12) - 1, GY, 3, 12); tx(y === 8 ? "'35+" : "'" + (27 + y), xv(y * 12), GY + 36, { a: 'center', s: 17, w: 700 }); }
+      const ps = Object.values(H.players).filter(p => p.v[ka] != null || p.v[kb] != null).sort((a, b) => a.j - b.j), placed = [];
+      for (const p of ps) { const b = p.v[kb] != null ? p.v[kb] : p.v[ka], a2 = p.v[ka] != null ? p.v[ka] : p.v[kb], x = xv(lerp(b, a2, k)); let L = 0; while (placed.some(q => q.L === L && Math.abs(q.x - x) < 44)) L++; placed.push({ x, L });
+        const mv = k > 0 && k < 1 && b !== a2; drawOrb(g, x, GY - L * 37, 3, { c: p.c, hop: mv ? Math.abs(Math.sin(T * 14 + p.j)) * 2 : 0, look: mv ? Math.sign(a2 - b) : 0, face: mv ? 'wide' : 'norm', noShadow: L > 0 }); }
+      const vb = vals(kb), va = vals(ka);
+      if (vb.length && va.length) { const mb = quant(vb, .5), ma = quant(va, .5), d = Math.round(ma - mb);
+        if (before) { g.fillStyle = C.mid; g.fillRect(xv(mb) - 2, GY + 44, 4, 26); g.fillStyle = C.cam; g.fillRect(xv(lerp(mb, ma, k)) - 4, GY + 44, 8, 26); }
+        tx(before ? 'ROOM MEDIAN' : 'ROOM MEDIAN', 110, 706, { s: 15, w: 700, ls: 2, c: C.dark });
+        tx(before ? whenLabel(mb) + '  →  ' + whenLabel(ma) : whenLabel(ma), 110, 756, { f: SERIF, s: 42 });
+        if (before) tx(d === 0 ? 'did not move' : Math.abs(d) + ' month' + (Math.abs(d) === 1 ? '' : 's') + (d > 0 ? ' later' : ' sooner'), 950, 756, { a: 'right', s: 24, w: 700, c: C.cam });
+      } else tx('no forecasts recorded yet', 530, 720, { a: 'center', s: 22, c: C.mid });
+    }
+    const lr = R.filter(r => r.type === 'lean'), ph = lr.length ? (590 - (lr.length - 1) * 16) / lr.length : 0;
+    lr.forEach((r, i) => { const y = 200 + i * (ph + 16), hs = H.hist[r.key] || []; card(1020, y, 820, ph, C.cream);
+      tx(r.title.toUpperCase(), 1044, y + 32, { s: 15, w: 700, ls: 2, c: C.cam });
+      graph(1050, y + 48, 470, ph - 68, r.key, { max: 100, band: true, marks: true, mid: true, small: true, upto: Math.min(1, cyc * 1.5), minT: 30 });
+      if (hs.length > 1) { const s = hs[0].m, e = hs[hs.length - 1].m, F = m => Math.abs(m - 50) < 2 ? 'even' : m < 50 ? '◀ ' + Math.round((50 - m) * 2) : Math.round((m - 50) * 2) + ' ▶';
+        tx('START  →  END', 1560, y + 62, { s: 14, w: 700, ls: 2, c: C.dark }); tx(F(s) + '  →  ' + F(e), 1560, y + 106, { s: 28, w: 700 });
+        const d = e - s; tx(Math.abs(d) < 3 ? 'Barely budged' : 'Swung to “' + (d < 0 ? r.left : r.right) + '”', 1560, y + 142, { s: 17, w: 700, c: Math.abs(d) < 3 ? C.dark : d < 0 ? C.green : C.cam });
+      } else tx('not played', 1560, y + 100, { s: 20, c: C.mid }); });
+    const P = Object.values(H.players), lk = lr.map(r => r.key), mvOf = p => lk.reduce((s, k) => s + (p.mv[k] || 0), 0), top = (arr, f) => arr.length ? arr.reduce((a, b) => f(b) > f(a) ? b : a) : null;
+    const voted = P.filter(p => lk.some(k => p.v[k] != null)), both = before ? P.filter(p => p.v[before.key] != null && p.v[after.key] != null) : [];
+    const flip = top(voted, mvOf), rock = top(voted, p => -mvOf(p)), mind = top(both, p => Math.abs(p.v[after.key] - p.v[before.key])), hype = top(P.filter(p => p.em), p => p.em);
+    const aw = [['FLIP-FLOPPER', flip, flip && Math.round(mvOf(flip)) + ' points of sliding', 'wide'], ['THE ROCK', rock && rock !== flip ? rock : null, rock && Math.round(mvOf(rock)) + ' points. Immovable.', 'sleepy'],
+      ['BIGGEST RETHINK', mind && mind.v[after.key] !== mind.v[before.key] ? mind : null, mind && Math.abs(mind.v[after.key] - mind.v[before.key]) + ' months ' + (mind.v[after.key] > mind.v[before.key] ? 'later' : 'sooner'), 'dizzy'], ['HYPE MACHINE', hype, hype && hype.em + ' emotes', 'happy']];
+    aw.forEach((w, i) => { const x = 80 + i * 445, y = 830; card(x, y, 425, 200, C.paper); tx(w[0], x + 150, y + 52, { s: 16, w: 700, ls: 2, c: C.cam });
+      if (w[1]) { drawOrb(g, x + 78, y + 160, 6, { c: w[1].c, face: w[3], hop: Math.abs(Math.sin(T * 5 + i)) * 1.5 }); tx(w[1].n, x + 150, y + 108, { f: SERIF, s: 36 }); tx(w[2], x + 150, y + 146, { s: 16, c: C.dark }); }
+      else { drawOrb(g, x + 78, y + 160, 6, { c: 7, face: 'sleepy', alpha: .4 }); tx('nobody yet', x + 150, y + 108, { f: SERIF, s: 30, c: C.mid }); } });
+  }
+
+  function frame(ts) {
+    const nt = ts / 1000; dt = Math.min(.05, nt - T || .016); T = nt;
+    g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = C.paper; g.fillRect(0, 0, cv.width, cv.height);
+    const s = Math.min(cv.width / 1920, cv.height / 1080); g.setTransform(s, 0, 0, s, (cv.width - 1920 * s) / 2, (cv.height - 1080 * s) / 2);
+    g.fillStyle = C.light; for (let y = 30; y < 1080; y += 60) for (let x = 30; x < 1920; x += 60) g.fillRect(x, y, 3, 3);
+    const r = roundAt(H.phase);
+    if (H.phase === 0) lobby(); else if (!r) summary(); else if (r.type === 'when') sceneWhen(r); else sceneLean(r);
+    for (let i = floats.length - 1; i >= 0; i--) { const f = floats[i], age = T - f.born, life = f.msg ? 7 : 4.5; if (age > life) { floats.splice(i, 1); continue; }
+      const k = age / life, y = 1100 - k * 900, x = f.x + Math.sin(age * 2 + f.wob) * 40; g.globalAlpha = k > .8 ? (1 - k) * 5 : 1;
+      if (f.msg) { g.font = `700 26px ${MONO}`; const w = Math.max(g.measureText(f.text).width, 80) + 32; g.fillStyle = C.ink; g.fillRect(x + 6, y + 6, w, 76); g.fillStyle = C.paper; g.fillRect(x, y, w, 76); g.strokeStyle = C.ink; g.lineWidth = 3; g.strokeRect(x + 1.5, y + 1.5, w - 3, 73);
+        tx(f.name.toUpperCase(), x + 16, y + 26, { s: 14, w: 700, ls: 1, c: C.cam }); tx(f.text, x + 16, y + 58, { s: 26, w: 700 }); }
+      else { g.font = '64px serif'; g.textAlign = 'center'; g.fillStyle = C.ink; g.fillText(f.text, x, y); }
+      g.globalAlpha = 1; }
+    if (H.bigQR) { g.fillStyle = 'rgba(251,251,250,.94)'; g.fillRect(0, 0, 1920, 1080); card(560, 90, 800, 900, C.paper, 14); drawQR(600, 120, 720); tx('ROOM ' + room, 960, 900, { a: 'center', w: 700, s: 52, ls: 10 }); tx(showUrl, 960, 950, { a: 'center', s: 22, c: C.dark }); }
+    const tp = (T - trans) / .7; if (tp < 1) { g.fillStyle = C.cam; for (let j = 0; j < 18; j++) for (let i = 0; i < 32; i++) { const rnd = ((i * 73 + j * 151) % 97) / 97; if (rnd * .55 + i / 32 * .45 > tp) g.fillRect(i * 60, j * 60, 61, 61); } }
+    if (!net.live) { g.fillStyle = C.ink; g.fillRect(680, 0, 560, 28); tx('DEMO MODE · this browser only · B adds a fake audience', 960, 20, { a: 'center', s: 15, w: 700, c: '#fff' }); }
+    requestAnimationFrame(frame);
+  }
+  setPhase(H.phase);
+  if (qs.has('bots')) addBots(+qs.get('bots') || 16);
+  window.__host = { H, setPhase, addBots, mark, onEmote };
+  requestAnimationFrame(frame);
+}
+
+/* ================= PHONE ================= */
+function el(tag, a, ...kids) { const e = document.createElement(tag); for (const k in a || {}) { if (k === 'class') e.className = a[k]; else if (k.startsWith('on')) e.addEventListener(k.slice(2), a[k]); else e.setAttribute(k, a[k]); } for (const c of kids.flat()) if (c != null) e.append(c.nodeType ? c : document.createTextNode(c)); return e; }
+function richDom(str) { const f = document.createDocumentFragment(); str.split(/(\*[^*]+\*)/).forEach(s => { if (!s) return; if (s[0] === '*') f.append(el('em', {}, s.slice(1, -1))); else f.append(s); }); return f; }
+
+async function startPhone() {
+  document.body.className = 'phone';
+  const root = el('div', { class: 'ph' }); document.body.append(root);
+  const room = (qs.get('r') || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4);
+  if (room.length !== 4) {
+    const inp = el('input', { class: 'inp', maxlength: 4, placeholder: 'ABCD', autocapitalize: 'characters', style: 'text-align:center;letter-spacing:.4em;text-transform:uppercase' });
+    const go = () => { const v = inp.value.toUpperCase().replace(/[^A-Z]/g, ''); if (v.length === 4) location.search = '?r=' + v; };
+    root.append(el('div', { class: 'top' }, el('span', {}, CONFIG.org)), el('div', { class: 'card center' }, el('div', { class: 'q' }, richDom(CONFIG.eventName)), el('p', { class: 'note' }, 'Type the four-letter room code from the big screen.'), inp, el('button', { class: 'btn pri', onclick: go }, 'Join'),
+      el('p', { class: 'note' }, 'Running the event? ', el('a', { href: '?host' }, 'Open the big screen'))));
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); }); return;
+  }
+  const MK = 'pulse-me-' + room; let me = jget(MK); const saveMe = () => jset(MK, me);
+  const net = await makeNet(room);
+  let state, shown = null, stop = null, lastSent = 0, pend = null, lastEm = 0, lastMsg = 0;
+  const dot = el('span', { class: 'dot' }); net.onConn(ok => dot.classList.toggle('off', !ok));
+  const cardBox = el('div', { style: 'flex:1;display:flex;flex-direction:column' }), emoBox = el('div', { style: 'display:flex;flex-direction:column;gap:8px' });
+
+  function sendVote(k, v) { me.v[k] = v; saveMe(); const n = Date.now(); clearTimeout(pend); if (n - lastSent > 110) { lastSent = n; net.setVote(me.uid, k, v); } else pend = setTimeout(() => { lastSent = Date.now(); net.setVote(me.uid, k, me.v[k]); }, 120); }
+  function orbCanvas(get) {
+    const can = el('canvas', { class: 'pcan' }), g = can.getContext('2d'), parts = []; let raf, dx = null, mv = -9, dir = 0, last = null;
+    const f = ts => { const T = ts / 1000, w = can.clientWidth || 300, hh = can.clientHeight || 150; if (can.width !== w || can.height !== hh) { can.width = w; can.height = hh; }
+      g.clearRect(0, 0, w, hh); const s = get(), gy = hh - 16, tgt = 56 + (w - 112) * s.f; if (dx == null) dx = tgt;
+      if (last != null && last !== s.f) { dir = Math.sign(s.f - last); mv = T; for (let i = 0; i < 3; i++) parts.push({ x: dx - dir * 30, y: gy - 6, vx: -dir * (40 + Math.random() * 90), vy: -60 - Math.random() * 140, t: 0, c: [C.cam, C.gold, C.green, C.ink][Math.random() * 4 | 0] }); }
+      last = s.f; dx += (tgt - dx) * .3;
+      g.fillStyle = C.ink; g.fillRect(0, gy, w, 3); for (let x = 12; x < w; x += 61) { g.fillRect(x, gy - 7, 2, 7); g.fillRect(x + 5, gy - 11, 2, 11); }
+      for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.t += .016; p.vy += 9; p.x += p.vx * .016; p.y += p.vy * .016; if (p.t > .7) { parts.splice(i, 1); continue; } g.fillStyle = p.c; g.fillRect(Math.round(p.x / 4) * 4, Math.round(p.y / 4) * 4, 6, 6); }
+      const moving = T - mv < .35, shake = s.shake ? Math.round(Math.sin(T * 40)) * 2 : 0;
+      drawOrb(g, dx + shake, gy, 7, { c: me.c, face: moving && !s.lock ? 'wide' : s.face || ((T % 3.4) < .12 ? 'blink' : 'norm'), look: moving ? dir : 0, tilt: (s.tilt || 0) + (moving ? dir * .8 : 0), hop: moving ? Math.abs(Math.sin(T * 20)) * 2 : s.bounce ? Math.abs(Math.sin(T * 5)) * 2 : 0, walk: moving ? T * 14 : null });
+      if (s.fx) drawFx(g, dx + shake, gy, 7, s.fx, T);
+      raf = requestAnimationFrame(f); };
+    raf = requestAnimationFrame(f); return { can, stop: () => cancelAnimationFrame(raf) };
+  }
+  function slider(cls, max, init, unset, onInput, onCommit, was) {
+    const knob = el('div', { class: 'knob' }, el('i'), el('i')), s = el('div', { class: 'sl ' + cls + (unset ? ' unset' : '') }, el('div', { class: 'track' }, el('div', { class: 'fill' })));
+    if (was != null) { const w = el('div', { class: 'was' }); w.style.left = (was / max * 100) + '%'; s.append(w); } s.append(knob);
+    let v = init, down = false; const place = () => { knob.style.left = (v / max * 100) + '%'; }; place();
+    const set = nv => { nv = clamp(Math.round(nv), 0, max); s.classList.remove('unset'); const ch = nv !== v; v = nv; place(); onInput(v, ch); };
+    const at = e => { const b = s.getBoundingClientRect(); return clamp((e.clientX - b.left) / b.width, 0, 1) * max; };
+    s.addEventListener('pointerdown', e => { down = true; try { s.setPointerCapture(e.pointerId); } catch (x) {} set(at(e)); e.preventDefault(); });
+    s.addEventListener('pointermove', e => { if (down) set(at(e)); });
+    const up = () => { if (down) { down = false; onCommit(v); } }; s.addEventListener('pointerup', up); s.addEventListener('pointercancel', up);
+    return { el: s, nudge: d => { set(v + d); onCommit(v); } };
+  }
+  function roundCard(r) {
+    const w = r.type === 'when', max = w ? WMAX : 100, k = r.key; let v = me.v[k], isSet = v != null; if (!isSet) v = w ? 42 : 50;
+    const was = r.compare ? me.v[r.compare] : null;
+    const big = el('div', { class: 'big' }), flav = el('div', { class: 'flav' }), card = el('div', { class: 'card' });
+    const FW = ['Next year?! Bold.', 'Buckle up.', "Before the decade's out.", 'A nice round number.', 'Soon-ish.', 'Time for a PhD first.', 'Pacing yourself.', 'No rush, then.', 'Not holding your breath.'];
+    const paint = bump => {
+      if (!isSet) { big.textContent = '?'; flav.textContent = 'Drag the slider to answer'; return; }
+      const f = v / max;
+      if (w) { big.textContent = whenLabel(v); flav.textContent = FW[Math.min(8, v / 12 | 0)]; card.style.background = `color-mix(in srgb, #D29A84 ${Math.round((1 - f) ** 2 * 60)}%, #F5F5F3)`; }
+      else { const d = Math.abs(v - 50), side = v < 50 ? r.left : r.right; big.textContent = d < 5 ? 'On the fence' : side; big.style.color = d < 5 ? C.ink : v < 50 ? C.green : C.cam;
+        flav.textContent = d < 5 ? 'Could go either way' : d < 20 ? 'Leaning that way' : d < 40 ? 'Fairly sure' : 'ALL IN'; card.style.background = `color-mix(in srgb, ${v < 50 ? '#2F6F48' : '#945947'} ${Math.round(d * .5)}%, #F5F5F3)`; }
+      if (bump) { big.classList.remove('bump'); void big.offsetWidth; big.classList.add('bump'); }
+    };
+    const oc = orbCanvas(() => { const f = v / max; if (!isSet) return { f, face: 'sleepy', fx: 'q', lock: true };
+      if (w) return f < .13 ? { f, face: 'wide', shake: true, fx: 'sweat' } : f > .9 ? { f, face: 'sleepy', fx: 'zzz' } : { f };
+      const d = Math.abs(f - .5); return d > .4 ? { f, face: 'happy', fx: 'spark', bounce: true, tilt: (f - .5) * 3 } : d < .05 ? { f, fx: 'q' } : { f, tilt: (f - .5) * 3 }; });
+    stop = oc.stop;
+    const sl = slider(w ? 'when' : 'lean', max, v, !isSet, (nv, ch) => { const prev = v; v = nv; const first = !isSet; isSet = true;
+      const bump = first || (w ? (prev / 12 | 0) !== (v / 12 | 0) : (prev < 50) !== (v < 50) || (Math.abs(prev - 50) < 40) !== (Math.abs(v - 50) < 40));
+      if (bump && navigator.vibrate) navigator.vibrate(8); paint(bump); if (ch || first) sendVote(k, v); },
+      nv => { if (me.first[k] == null) { me.first[k] = nv; saveMe(); } sendVote(k, nv); }, was);
+    card.append(el('div', { class: 'eyebrow' }, r.title), el('div', { class: 'q' }, richDom(r.q)), oc.can, big, flav, sl.el,
+      w ? el('div', { class: 'ticks' }, ["'27", "'28", "'29", "'30", "'31", "'32", "'33", "'34", "'35+"].map(t => el('span', {}, t))) : el('div', { class: 'ends' }, el('span', {}, '◀ ' + r.left), el('span', {}, r.right + ' ▶')),
+      el('div', { class: 'nudge' }, el('button', { class: 'btn', onclick: () => sl.nudge(-1) }, w ? '− month' : '◀ nudge'), el('button', { class: 'btn', onclick: () => sl.nudge(1) }, w ? '+ month' : 'nudge ▶')),
+      was != null ? el('div', { class: 'note', style: 'text-align:center' }, 'The faint line is your first answer: ' + whenLabel(was)) : el('div', { class: 'note', style: 'text-align:center' }, 'You can change this any time. The big screen updates live.'));
+    paint(false); return card;
+  }
+  function show() {
+    const key = !state ? 'wait' : PH[state.i] || 'wait'; msgRow.style.display = state && state.msgs === false ? 'none' : '';
+    if (key === shown) return; shown = key; if (stop) { stop(); stop = null; }
+    const r = R.find(x => x.key === key); let card;
+    if (r) card = roundCard(r);
+    else if (key === 'summary') { const rows = R.map(x => { const a = me.first[x.key], b = me.v[x.key]; if (b == null) return null; const F = v => x.type === 'when' ? whenLabel(v) : Math.abs(v - 50) < 5 ? 'on the fence' : (v < 50 ? x.left : x.right) + ' (' + Math.abs(v - 50) * 2 + '%)'; return el('div', {}, el('b', {}, x.title), a != null && a !== b ? F(a) + '  →  ' + F(b) : F(b) + (x.type === 'lean' ? ', start to finish' : '')); });
+      const oc = orbCanvas(() => ({ f: .5, face: 'happy', fx: 'spark', bounce: true })); stop = oc.stop;
+      card = el('div', { class: 'card' }, el('div', { class: 'eyebrow' }, 'Your evening'), el('div', { class: 'q' }, richDom('How *you* moved, ' + me.n)), oc.can, el('div', { class: 'recap' }, rows.some(Boolean) ? rows : 'You kept your cards close tonight.'), el('p', { class: 'note' }, 'Look up for the whole room.')); }
+    else { const oc = orbCanvas(() => ({ f: .5 + Math.sin(performance.now() / 1400) * .32, lock: false })); stop = oc.stop;
+      card = el('div', { class: 'card center' }, el('div', { class: 'eyebrow' }, 'Room ' + room), el('div', { class: 'q' }, richDom("You're in, *" + me.n.replace(/\*/g, '') + '*')), oc.can, el('p', { class: 'note' }, key === 'wait' ? 'Waiting for the host to start the room…' : 'Eyes on the big screen. Warm up your thumbs on the buttons below.')); }
+    cardBox.replaceChildren(card);
+  }
+  const msgIn = el('input', { class: 'inp', maxlength: 50, placeholder: 'Say something to the room' });
+  const sendMsg = () => { const t = msgIn.value.trim(), n = Date.now(); if (!t || n - lastMsg < 4000) return; lastMsg = n; net.sendEmote({ u: me.uid, m: t.slice(0, 50) }); msgIn.value = ''; msgIn.blur(); };
+  msgIn.addEventListener('keydown', e => { if (e.key === 'Enter') sendMsg(); });
+  const msgRow = el('div', { class: 'msg' }, msgIn, el('button', { class: 'btn', onclick: sendMsg }, 'Send'));
+  function play() {
+    net.setPlayer(me.uid, { n: me.n, c: me.c }); for (const k in me.v) net.setVote(me.uid, k, me.v[k]);
+    const emo = el('div', { class: 'emo' }, CONFIG.emotes.map(e => el('button', { onclick: ev => { const n = Date.now(); if (n - lastEm < 350) return; lastEm = n; net.sendEmote({ u: me.uid, e });
+      const b = ev.currentTarget.getBoundingClientRect(), f = el('div', { class: 'fly' }, e); f.style.left = b.left + b.width / 2 - 15 + 'px'; f.style.top = b.top - 10 + 'px'; document.body.append(f); setTimeout(() => f.remove(), 900); } }, e)));
+    emoBox.append(emo, msgRow);
+    root.replaceChildren(el('div', { class: 'top' }, el('span', {}, dot, 'Room ' + room), el('span', {}, me.n)), cardBox, emoBox);
+    net.onState(s => { state = s; show(); });
+  }
+  if (me && me.n) return play();
+  let c = Math.random() * 8 | 0; const nameIn = el('input', { class: 'inp', maxlength: 14, placeholder: 'Your nickname', autocomplete: 'off' });
+  me = { c }; const oc = orbCanvas(() => ({ f: .5, bounce: true, face: 'happy' }));
+  const join = () => { const n = nameIn.value.trim().slice(0, 14); if (!n) { nameIn.focus(); return; } oc.stop(); me = { uid: rid(10, 'abcdefghijkmnpqrstuvwxyz23456789'), n, c: me.c, v: {}, first: {} }; saveMe(); play(); };
+  nameIn.addEventListener('keydown', e => { if (e.key === 'Enter') join(); });
+  root.append(el('div', { class: 'top' }, el('span', {}, CONFIG.org), el('span', {}, 'Room ' + room)),
+    el('div', { class: 'card' }, el('div', { class: 'q', style: 'font-size:30px' }, richDom(CONFIG.eventName)), oc.can,
+      el('button', { class: 'btn', onclick: () => { me.c = (me.c + 1) % 8; } }, 'Change colour'), nameIn, el('button', { class: 'btn pri', onclick: join }, 'Join the room'), el('p', { class: 'note' }, 'Your nickname shows on the big screen.')));
+}
+
+(qs.has('host') ? startHost() : startPhone()).catch(e => { document.body.append(el('pre', { style: 'padding:20px;white-space:pre-wrap' }, 'Could not start: ' + e.message)); });
+})();
+
+</script>
+</body>
+</html>
