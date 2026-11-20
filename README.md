@@ -15,6 +15,8 @@ Jackbox-style audience tracker for the CAISH timelines social. One page, two vie
 | M | Drop a generic marker |
 | Q | Big QR overlay for latecomers |
 | X | Turn audience messages on or off |
+| E | Turn emotes on or off (hides the emote buttons on phones) |
+| S | Emote size: small, medium, large |
 | F | Fullscreen |
 | B | Add 8 fake audience members (rehearsal) |
 

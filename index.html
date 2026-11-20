@@ -2564,7 +2564,8 @@ async function startHost() {
   let room = localStorage.getItem('pulse-host-room');
   if (!room || qs.has('new')) { room = rid(4); localStorage.setItem('pulse-host-room', room); if (qs.has('new')) history.replaceState(null, '', '?host'); }
   const SK = 'pulse-host-' + room, saved = jget(SK) || {};
-  const H = { phase: saved.phase || 0, players: saved.players || {}, hist: saved.hist || {}, marks: saved.marks || {}, el: saved.el || {}, msgs: saved.msgs !== false, bigQR: false };
+  const H = { phase: saved.phase || 0, players: saved.players || {}, hist: saved.hist || {}, marks: saved.marks || {}, el: saved.el || {}, msgs: saved.msgs !== false, emo: saved.emo !== false, esz: saved.esz == null ? 1 : saved.esz, bigQR: false };
+  const ESZ = [.55, 1, 1.6], ESN = ['small', 'medium', 'large'];
   const disp = {}, D = u => disp[u] || (disp[u] = { x: {}, l: null, ph: Math.random() * 6.28, moved: -9, dir: 0, wx: Math.random(), wt: Math.random(), wn: 0, born: performance.now() / 1000 });
   const floats = [], sm = {}; let T = 0, dt = .016, trans = -9, bubble = null, mood = null, lastSay = 0, nd = { p: .5, v: 0 }, bots = [];
   const net = await makeNet(room);
@@ -2576,7 +2577,8 @@ async function startHost() {
 
   const vals = k => Object.values(H.players).map(p => p.v[k]).filter(v => v != null);
   const count = () => Object.keys(H.players).length;
-  const save = () => jset(SK, { phase: H.phase, players: H.players, hist: H.hist, marks: H.marks, el: H.el, msgs: H.msgs });
+  const save = () => jset(SK, { phase: H.phase, players: H.players, hist: H.hist, marks: H.marks, el: H.el, msgs: H.msgs, emo: H.emo, esz: H.esz });
+  const pushState = () => net.setState({ i: H.phase, msgs: H.msgs, emo: H.emo, ts: Date.now() });
   const say = (t, m, dur = 4.5) => { bubble = { t, until: T + dur }; mood = m ? { m, until: T + dur } : null; lastSay = T; };
 
   function onPlayer(u, p) {
@@ -2591,11 +2593,11 @@ async function startHost() {
   }
   function onEmote(e) {
     if (!e) return; const p = H.players[e.u]; if (p) p.em = (p.em || 0) + 1;
-    if (e.m && !H.msgs) return; if (floats.length >= 45 || (e.m && floats.filter(f => f.msg).length >= 5)) return; // under spam, drop new ones so the ones on screen finish rising
+    if (e.m ? !H.msgs : !H.emo) return; if (floats.length >= 45 || (e.m && floats.filter(f => f.msg).length >= 5)) return; // under spam, drop new ones so the ones on screen finish rising
     floats.push({ x: 160 + Math.random() * 1500, born: T, text: e.m ? String(e.m).slice(0, 60) : String(e.e).slice(0, 4), msg: !!e.m, name: p ? p.n : '', wob: Math.random() * 6 });
   }
   net.onPlayers(onPlayer); net.onEmote(onEmote);
-  function setPhase(i) { i = clamp(i, 0, PH.length - 1); if (i !== H.phase) { trans = T; nd = { p: .5, v: 0 }; } H.phase = i; net.setState({ i, msgs: H.msgs, ts: Date.now() }); save();
+  function setPhase(i) { i = clamp(i, 0, PH.length - 1); if (i !== H.phase) { trans = T; nd = { p: .5, v: 0 }; } H.phase = i; pushState(); save();
     const r = roundAt(i); bubble = null; if (r) say(vals(r.key).length ? 'Still time to change your mind' : 'Phones out. Slide to vote!'); else if (i) say('GG, everyone', 'happy', 8); }
   function mark(l) { const r = roundAt(H.phase); if (!r) return; const a = H.marks[r.key] = H.marks[r.key] || []; a.push({ t: H.el[r.key] || 0, l: l || '★' + (a.length + 1) }); save(); }
 
@@ -2642,17 +2644,19 @@ async function startHost() {
   const btn = (label, key, fn, cls) => { const b = document.createElement('button'); b.innerHTML = label + (key ? `<kbd>${key}</kbd>` : ''); if (cls) b.className = cls; b.onclick = () => { fn(); b.blur(); }; bar.append(b); };
   const act = {
     prev: () => setPhase(H.phase - 1), next: () => setPhase(H.phase + 1), mark: () => mark(), sk: () => mark('Sceptic'), pro: () => mark('Pro'),
-    bots: () => addBots(8), qr: () => { H.bigQR = !H.bigQR; }, msgs: () => { H.msgs = !H.msgs; net.setState({ i: H.phase, msgs: H.msgs, ts: Date.now() }); say(H.msgs ? 'Messages on' : 'Messages off'); },
+    bots: () => addBots(8), qr: () => { H.bigQR = !H.bigQR; }, msgs: () => { H.msgs = !H.msgs; pushState(); save(); say(H.msgs ? 'Messages on' : 'Messages off'); },
+    emo: () => { H.emo = !H.emo; if (!H.emo) for (let i = floats.length - 1; i >= 0; i--) if (!floats[i].msg) floats.splice(i, 1); pushState(); save(); say(H.emo ? 'Emotes on' : 'Emotes off'); },
+    esz: () => { H.esz = (H.esz + 1) % 3; save(); say('Emotes: ' + ESN[H.esz]); },
     full: () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(),
     fresh: () => { if (confirm('Start a brand new room? This clears everything on screen.')) location.search = '?host&new'; }
   };
   btn('◀ Back', '←', act.prev); btn('Next ▶', '→', act.next, 'pri'); btn('Mark', 'M', act.mark); btn('Sceptic up', '1', act.sk); btn('Pro up', '2', act.pro);
-  btn('Big QR', 'Q', act.qr); btn('Messages', 'X', act.msgs); btn('+8 bots', 'B', act.bots); btn('Fullscreen', 'F', act.full); btn('New room', '', act.fresh);
+  btn('Big QR', 'Q', act.qr); btn('Messages', 'X', act.msgs); btn('Emotes', 'E', act.emo); btn('Emote size', 'S', act.esz); btn('+8 bots', 'B', act.bots); btn('Fullscreen', 'F', act.full); btn('New room', '', act.fresh);
   let hideT; const wake = () => { bar.classList.remove('hide'); clearTimeout(hideT); hideT = setTimeout(() => bar.classList.add('hide'), 2500); }; addEventListener('mousemove', wake); wake();
   addEventListener('keydown', e => { const k = e.key.toLowerCase();
     if (k === 'arrowright' || k === ' ' || k === 'pagedown') act.next(); else if (k === 'arrowleft' || k === 'pageup') act.prev();
     else if (k === 'm') act.mark(); else if (k === '1') act.sk(); else if (k === '2') act.pro(); else if (k === 'q') act.qr();
-    else if (k === 'x') act.msgs(); else if (k === 'b') act.bots(); else if (k === 'f') act.full(); else return; e.preventDefault(); });
+    else if (k === 'x') act.msgs(); else if (k === 'e') act.emo(); else if (k === 's') act.esz(); else if (k === 'b') act.bots(); else if (k === 'f') act.full(); else return; e.preventDefault(); });
 
   /* ----- drawing helpers ----- */
   function tx(s, x, y, o) { o = o || {}; g.font = `${o.it ? 'italic ' : ''}${o.w || 400} ${o.s || 24}px ${o.f || MONO}`; g.fillStyle = o.c || C.ink; g.textAlign = o.a || 'left'; g.textBaseline = 'alphabetic'; if ('letterSpacing' in g) g.letterSpacing = (o.ls || 0) + 'px'; g.fillText(s, x, y); const w = g.measureText(s).width; if ('letterSpacing' in g) g.letterSpacing = '0px'; return w; }
@@ -2822,7 +2826,7 @@ async function startHost() {
   }
 
   const bgc = document.createElement('canvas'); bgc.width = 1920; bgc.height = 1080; { const b = bgc.getContext('2d'); b.fillStyle = C.paper; b.fillRect(0, 0, 1920, 1080); b.fillStyle = C.light; for (let y = 30; y < 1080; y += 60) for (let x = 30; x < 1920; x += 60) b.fillRect(x, y, 3, 3); }
-  const EMO = new Map(), emo = t => { let c = EMO.get(t); if (!c) { c = document.createElement('canvas'); c.width = c.height = 96; const x = c.getContext('2d'); x.font = '64px serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(t, 48, 52); EMO.set(t, c); } return c; };
+  const EMO = new Map(), emo = t => { let c = EMO.get(t); if (!c) { c = document.createElement('canvas'); c.width = c.height = 168; const x = c.getContext('2d'); x.font = '112px serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(t, 84, 91); EMO.set(t, c); } return c; };
   function frame(ts) {
     const nt = ts / 1000; dt = Math.min(.05, nt - T || .016); T = nt;
     g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = C.paper; g.fillRect(0, 0, cv.width, cv.height);
@@ -2832,9 +2836,10 @@ async function startHost() {
     if (H.phase === 0) lobby(); else if (!r) summary(); else if (r.type === 'when') sceneWhen(r); else sceneLean(r);
     for (let i = floats.length - 1; i >= 0; i--) { const f = floats[i], age = T - f.born, life = f.msg ? 7 : 4.5; if (age > life) { floats.splice(i, 1); continue; }
       const k = age / life, y = 1100 - k * 900, x = f.x + Math.sin(age * 2 + f.wob) * 40; g.globalAlpha = k > .8 ? (1 - k) * 5 : 1;
-      if (f.msg) { g.font = `700 26px ${MONO}`; const w = Math.max(g.measureText(f.text).width, 80) + 32; g.fillStyle = C.ink; g.fillRect(x + 6, y + 6, w, 76); g.fillStyle = C.paper; g.fillRect(x, y, w, 76); g.strokeStyle = C.ink; g.lineWidth = 3; g.strokeRect(x + 1.5, y + 1.5, w - 3, 73);
-        tx(f.name.toUpperCase(), x + 16, y + 26, { s: 14, w: 700, ls: 1, c: C.cam }); tx(f.text, x + 16, y + 58, { s: 26, w: 700 }); }
-      else g.drawImage(emo(f.text), x - 48, y - 70);
+      const z = ESZ[H.esz];
+      if (f.msg) { g.font = `700 ${26 * z}px ${MONO}`; const w = Math.max(g.measureText(f.text).width, 80 * z) + 32 * z, bh = 76 * z; g.fillStyle = C.ink; g.fillRect(x + 6, y + 6, w, bh); g.fillStyle = C.paper; g.fillRect(x, y, w, bh); g.strokeStyle = C.ink; g.lineWidth = 3; g.strokeRect(x + 1.5, y + 1.5, w - 3, bh - 3);
+        tx(f.name.toUpperCase(), x + 16 * z, y + 26 * z, { s: 14 * z, w: 700, ls: 1, c: C.cam }); tx(f.text, x + 16 * z, y + 58 * z, { s: 26 * z, w: 700 }); }
+      else g.drawImage(emo(f.text), x - 48 * z, y - 70 * z, 96 * z, 96 * z);
       g.globalAlpha = 1; }
     if (H.bigQR) { g.fillStyle = 'rgba(251,251,250,.94)'; g.fillRect(0, 0, 1920, 1080); card(560, 90, 800, 900, C.paper, 14); drawQR(600, 120, 720); tx('ROOM ' + room, 960, 900, { a: 'center', w: 700, s: 52, ls: 10 }); tx(showUrl, 960, 950, { a: 'center', s: 22, c: C.dark }); }
     const tp = (T - trans) / .7; if (tp < 1) { g.fillStyle = C.cam; for (let j = 0; j < 18; j++) for (let i = 0; i < 32; i++) { const rnd = ((i * 73 + j * 151) % 97) / 97; if (rnd * .55 + i / 32 * .45 > tp) g.fillRect(i * 60, j * 60, 61, 61); } }
@@ -2864,7 +2869,7 @@ async function startPhone() {
   }
   const MK = 'pulse-me-' + room; let me = jget(MK); const saveMe = () => jset(MK, me);
   const net = await makeNet(room);
-  let state, shown = null, stop = null, lastSent = 0, pend = null, lastEm = 0, lastMsg = 0;
+  let emoRow = null, state, shown = null, stop = null, lastSent = 0, pend = null, lastEm = 0, lastMsg = 0;
   const dot = el('span', { class: 'dot' }); net.onConn(ok => dot.classList.toggle('off', !ok));
   const cardBox = el('div', { style: 'flex:1;display:flex;flex-direction:column' }), emoBox = el('div', { style: 'display:flex;flex-direction:column;gap:8px' });
 
@@ -2922,7 +2927,7 @@ async function startPhone() {
     paint(false); return card;
   }
   function show() {
-    const key = !state ? 'wait' : PH[state.i] || 'wait'; msgRow.style.display = state && state.msgs === false ? 'none' : '';
+    const key = !state ? 'wait' : PH[state.i] || 'wait'; msgRow.style.display = state && state.msgs === false ? 'none' : ''; if (emoRow) emoRow.style.display = state && state.emo === false ? 'none' : '';
     if (key === shown) return; shown = key; if (stop) { stop(); stop = null; }
     const r = R.find(x => x.key === key); let card;
     if (r) card = roundCard(r);
@@ -2939,7 +2944,7 @@ async function startPhone() {
   const msgRow = el('div', { class: 'msg' }, msgIn, el('button', { class: 'btn', onclick: sendMsg }, 'Send'));
   function play() {
     net.setPlayer(me.uid, { n: me.n, c: me.c, h: me.h | 0 }); for (const k in me.v) net.setVote(me.uid, k, me.v[k]);
-    const emo = el('div', { class: 'emo' }, CONFIG.emotes.map(e => el('button', { onclick: ev => { const n = Date.now(); if (n - lastEm < 350) return; lastEm = n; net.sendEmote({ u: me.uid, e });
+    const emo = emoRow = el('div', { class: 'emo' }, CONFIG.emotes.map(e => el('button', { onclick: ev => { const n = Date.now(); if (n - lastEm < 350) return; lastEm = n; net.sendEmote({ u: me.uid, e });
       const b = ev.currentTarget.getBoundingClientRect(), f = el('div', { class: 'fly' }, e); f.style.left = b.left + b.width / 2 - 15 + 'px'; f.style.top = b.top - 10 + 'px'; document.body.append(f); setTimeout(() => f.remove(), 900); } }, e)));
     emoBox.append(emo, msgRow);
     root.replaceChildren(el('div', { class: 'top' }, el('span', {}, dot, 'Room ' + room), el('span', {}, me.n)), cardBox, emoBox);
