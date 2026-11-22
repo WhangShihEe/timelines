@@ -2,7 +2,7 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:var(--paper);color:var(--ink);font-family:"Space Mono",ui-monospace,Menlo,monospace;overscroll-behavior:none}
 button,input{font:inherit;color:inherit}
-em{font-style:italic;color:var(--cam)}
+em{font-style:normal;color:var(--cam)}
 
 /* ---------- big screen ---------- */
 body.host{overflow:hidden}
@@ -23,8 +23,9 @@ body.phone{user-select:none;-webkit-user-select:none;touch-action:manipulation}
 .card{flex:1;display:flex;flex-direction:column;border:3px solid var(--ink);background:var(--cream);box-shadow:6px 6px 0 var(--ink);padding:16px;gap:10px;position:relative;overflow:hidden;animation:pop .35s steps(5)}
 @keyframes pop{from{transform:translateY(18px);opacity:0}to{transform:none;opacity:1}}
 .eyebrow{font-size:11px;letter-spacing:.15em;text-transform:uppercase;font-weight:700;color:var(--dark)}
-.q{font-family:"Libre Baskerville",Georgia,serif;font-size:23px;line-height:1.18;letter-spacing:-.02em}
-.big{font-family:"Libre Baskerville",Georgia,serif;font-size:42px;text-align:center;letter-spacing:-.02em;line-height:1.1;margin-top:auto}
+.q{font-weight:700;font-size:19px;line-height:1.25;letter-spacing:-.02em}
+.qsub{font-size:12px;color:var(--dark);margin-top:-4px}
+.big{font-weight:700;font-size:34px;text-align:center;letter-spacing:-.02em;line-height:1.1;margin-top:auto}
 .big.bump{animation:bump .18s steps(3)}
 @keyframes bump{50%{transform:scale(1.14)}}
 .flav{text-align:center;font-size:13px;color:var(--dark);min-height:1.5em}
@@ -60,3 +61,5 @@ body.phone{user-select:none;-webkit-user-select:none;touch-action:manipulation}
 .recap b{display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dark)}
 .center{align-items:center;justify-content:center;text-align:center}
 .note{font-size:12px;color:var(--dark);line-height:1.6}
+#mk{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);display:none;width:340px;border:3px solid var(--ink);box-shadow:5px 5px 0 var(--ink);background:var(--paper);padding:12px;font-size:20px;font-weight:700;text-align:center;text-transform:uppercase;outline:none;z-index:5}
+#mk::placeholder{text-transform:none;font-weight:400;font-size:14px}

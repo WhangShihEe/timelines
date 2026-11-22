@@ -23,22 +23,28 @@ const CONFIG = {
 
   rounds: [
     { key: 't1', type: 'when', title: 'Opening forecast',
-      q: 'When will we get *superintelligence*?' },
+      q: 'When will we get *Top-expert-dominating AI*?',
+      sub: 'AI that beats top experts at everything' },
 
-    { key: 'd1', type: 'lean', title: 'Debate 1 · Research taste',
-      q: 'AI will match top human *research taste* within three years',
-      left: 'Not a chance', right: 'It will' },
+    { key: 'd1', type: 'lean', title: 'Q1 · Speed-up today',
+      q: 'Current frontier systems are providing a *2x research speed up*',
+      left: 'Disagree', right: 'Agree' },
 
-    { key: 'd2', type: 'lean', title: 'Debate 2 · Diminishing returns',
-      q: 'AI improving AI will *snowball*, not stall',
-      left: 'It stalls', right: 'It snowballs' },
+    { key: 'd2', type: 'lean', title: 'Q2 · Automated researcher',
+      q: 'A *fully automated AI researcher* will arrive in the next 2 years',
+      left: 'Disagree', right: 'Agree' },
 
-    { key: 'd3', type: 'lean', title: 'Debate 3 · Generalisation',
-      q: 'Benchmark gains will carry over to *messy real-world* work',
-      left: 'Goodharted', right: 'It generalises' },
+    { key: 'd3', type: 'lean', title: 'Q3 · Feedback loop',
+      q: 'Once AI research is fully automated, the *feedback loop* from gain in capability will outpace the increasing difficulty',
+      left: 'Disagree', right: 'Agree' },
+
+    { key: 'd4', type: 'lean', title: 'Q4 · Generalisation',
+      q: 'Given recursive self improvement is possible, the output would be a *generally capable agent* even on tasks where it has minimal data',
+      left: 'Disagree', right: 'Agree' },
 
     { key: 't2', type: 'when', title: 'Final forecast', compare: 't1',
-      q: 'So, when will we get *superintelligence*?' }
+      q: 'So, when will we get *Top-expert-dominating AI*?',
+      sub: 'AI that beats top experts at everything' }
   ],
 
   emotes: ['🔥', '🤯', '🤔', '👏', '😂', '💀']

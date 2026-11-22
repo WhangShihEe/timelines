@@ -12,7 +12,7 @@ Jackbox-style audience tracker for the CAISH timelines social. One page, two vie
 | → / Space | Next round |
 | ← | Previous round |
 | 1 / 2 | Flag "Sceptic" / "Pro" speaker on the live line |
-| M | Drop a generic marker |
+| M | Flag the live line: type initials, Enter to place, Esc to cancel |
 | Q | Big QR overlay for latecomers |
 | X | Turn audience messages on or off |
 | E | Turn emotes on or off (hides the emote buttons on phones) |
@@ -20,7 +20,7 @@ Jackbox-style audience tracker for the CAISH timelines social. One page, two vie
 | F | Fullscreen |
 | B | Add 8 fake audience members (rehearsal) |
 
-Rounds: lobby, opening forecast, three debates, final forecast, summary.
+Rounds: lobby, opening forecast, four questions, final forecast, summary.
 "New room" in the control bar starts a fresh room code and clears the screen.
 
 ## Editing

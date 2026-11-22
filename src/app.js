@@ -10,7 +10,7 @@ const PAL = [
   { b:'#E0B152', h:'#F0D08A', s:'#C4923A' }, { b:'#6F94BD', h:'#9DB9D8', s:'#52789F' },
   { b:'#9A7AB5', h:'#BCA3D0', s:'#7C5E98' }, { b:'#DE94A8', h:'#EDBBC8', s:'#C2748A' },
   { b:'#5FADA9', h:'#93CBC8', s:'#458E8A' }, { b:'#A9A9A4', h:'#CBCBC7', s:'#8A8A86' } ];
-const MONO = '"Space Mono",ui-monospace,Menlo,monospace', SERIF = '"Libre Baskerville",Georgia,serif';
+const MONO = '"Space Mono",ui-monospace,Menlo,monospace', SERIF = 'TITLE';
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const WMAX = 96;
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x)), lerp = (a, b, t) => a + (b - a) * t;
@@ -174,7 +174,7 @@ async function startHost() {
   net.onPlayers(onPlayer); net.onEmote(onEmote);
   function setPhase(i) { i = clamp(i, 0, PH.length - 1); if (i !== H.phase) { trans = T; nd = { p: .5, v: 0 }; } H.phase = i; pushState(); save();
     const r = roundAt(i); bubble = null; if (r) say(vals(r.key).length ? 'Still time to change your mind' : 'Phones out. Slide to vote!'); else if (i) say('GG, everyone', 'happy', 8); }
-  function mark(l) { const r = roundAt(H.phase); if (!r) return; const a = H.marks[r.key] = H.marks[r.key] || []; a.push({ t: H.el[r.key] || 0, l: l || '★' + (a.length + 1) }); save(); }
+  function mark(l, at) { const r = roundAt(H.phase); if (!r && !at) return; const k = at ? at.k : r.key, a = H.marks[k] = H.marks[k] || []; a.push({ t: at ? at.t : H.el[k] || 0, l: l || '★' + (a.length + 1) }); save(); }
 
   setInterval(() => {
     const r = roundAt(H.phase); if (!r) return;
@@ -217,15 +217,20 @@ async function startHost() {
   /* ----- controls ----- */
   const bar = document.createElement('div'); bar.id = 'bar'; document.body.append(bar);
   const btn = (label, key, fn, cls) => { const b = document.createElement('button'); b.innerHTML = label + (key ? `<kbd>${key}</kbd>` : ''); if (cls) b.className = cls; b.onclick = () => { fn(); b.blur(); }; bar.append(b); };
+  // M opens a small box: type initials, Enter places the flag at the moment M was pressed
+  const mk = document.createElement('input'); mk.id = 'mk'; mk.maxLength = 6; mk.placeholder = 'Initials, then Enter (Esc cancels)'; mk.autocomplete = 'off'; document.body.append(mk); let mkAt = null;
+  const mkClose = () => { mk.style.display = 'none'; mkAt = null; mk.blur(); };
+  mk.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { if (mkAt) mark(mk.value.trim().toUpperCase().slice(0, 6), mkAt); mkClose(); } else if (e.key === 'Escape') mkClose(); });
+  mk.addEventListener('blur', () => { mk.style.display = 'none'; mkAt = null; });
   const act = {
-    prev: () => setPhase(H.phase - 1), next: () => setPhase(H.phase + 1), mark: () => mark(), sk: () => mark('Sceptic'), pro: () => mark('Pro'),
+    prev: () => setPhase(H.phase - 1), next: () => setPhase(H.phase + 1), mark: () => { const r = roundAt(H.phase); if (!r || r.type !== 'lean') return; mkAt = { k: r.key, t: H.el[r.key] || 0 }; mk.value = ''; mk.style.display = 'block'; mk.focus(); }, sk: () => mark('Sceptic'), pro: () => mark('Pro'),
     bots: () => addBots(8), qr: () => { H.bigQR = !H.bigQR; }, msgs: () => { H.msgs = !H.msgs; pushState(); save(); say(H.msgs ? 'Messages on' : 'Messages off'); },
     emo: () => { H.emo = !H.emo; if (!H.emo) for (let i = floats.length - 1; i >= 0; i--) if (!floats[i].msg) floats.splice(i, 1); pushState(); save(); say(H.emo ? 'Emotes on' : 'Emotes off'); },
     esz: () => { H.esz = (H.esz + 1) % 3; save(); say('Emotes: ' + ESN[H.esz]); },
     full: () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(),
     fresh: () => { if (confirm('Start a brand new room? This clears everything on screen.')) location.search = '?host&new'; }
   };
-  btn('◀ Back', '←', act.prev); btn('Next ▶', '→', act.next, 'pri'); btn('Mark', 'M', act.mark); btn('Sceptic up', '1', act.sk); btn('Pro up', '2', act.pro);
+  btn('◀ Back', '←', act.prev); btn('Next ▶', '→', act.next, 'pri'); btn('Flag', 'M', act.mark); btn('Sceptic up', '1', act.sk); btn('Pro up', '2', act.pro);
   btn('Big QR', 'Q', act.qr); btn('Messages', 'X', act.msgs); btn('Emotes', 'E', act.emo); btn('Emote size', 'S', act.esz); btn('+8 bots', 'B', act.bots); btn('Fullscreen', 'F', act.full); btn('New room', '', act.fresh);
   let hideT; const wake = () => { bar.classList.remove('hide'); clearTimeout(hideT); hideT = setTimeout(() => bar.classList.add('hide'), 2500); }; addEventListener('mousemove', wake); wake();
   addEventListener('keydown', e => { const k = e.key.toLowerCase();
@@ -234,14 +239,15 @@ async function startHost() {
     else if (k === 'x') act.msgs(); else if (k === 'e') act.emo(); else if (k === 's') act.esz(); else if (k === 'b') act.bots(); else if (k === 'f') act.full(); else return; e.preventDefault(); });
 
   /* ----- drawing helpers ----- */
-  function tx(s, x, y, o) { o = o || {}; g.font = `${o.it ? 'italic ' : ''}${o.w || 400} ${o.s || 24}px ${o.f || MONO}`; g.fillStyle = o.c || C.ink; g.textAlign = o.a || 'left'; g.textBaseline = 'alphabetic'; if ('letterSpacing' in g) g.letterSpacing = (o.ls || 0) + 'px'; g.fillText(s, x, y); const w = g.measureText(s).width; if ('letterSpacing' in g) g.letterSpacing = '0px'; return w; }
+  function tx(s, x, y, o) { o = o || {}; g.font = `${o.f === SERIF ? 700 : o.w || 400} ${o.s || 24}px ${MONO}`; g.fillStyle = o.c || C.ink; g.textAlign = o.a || 'left'; g.textBaseline = 'alphabetic'; if ('letterSpacing' in g) g.letterSpacing = (o.ls || 0) + 'px'; g.fillText(s, x, y); const w = g.measureText(s).width; if ('letterSpacing' in g) g.letterSpacing = '0px'; return w; }
   function card(x, y, w, h, fill, sh) { sh = sh == null ? 8 : sh; g.fillStyle = C.ink; g.fillRect(x + sh, y + sh, w, h); g.fillStyle = fill || C.cream; g.fillRect(x, y, w, h); g.strokeStyle = C.ink; g.lineWidth = 3; g.strokeRect(x + 1.5, y + 1.5, w - 3, h - 3); }
-  function rich(str, x, y, maxW, size, align) {
+  function rich(str, x, y, maxW, size, align, dry) {
     const toks = []; str.split(/(\*[^*]+\*)/).forEach(seg => { if (!seg) return; const acc = seg[0] === '*'; (acc ? seg.slice(1, -1) : seg).split(/\s+/).filter(Boolean).forEach(t => toks.push({ t, acc })); });
-    const F = a => `${a ? 'italic ' : ''}400 ${size}px ${SERIF}`; g.font = F(false); const sp = g.measureText(' ').width, lines = [[]]; let w = 0;
+    const F = a => `700 ${size}px ${MONO}`; g.font = F(false); const sp = g.measureText(' ').width, lines = [[]]; let w = 0;
     for (const k of toks) { g.font = F(k.acc); k.w = g.measureText(k.t).width; if (w + k.w > maxW && lines[lines.length - 1].length) { lines.push([]); w = 0; } lines[lines.length - 1].push(k); w += k.w + sp; }
     g.textAlign = 'left'; g.textBaseline = 'alphabetic';
-    lines.forEach((ln, i) => { let cx = x; if (align === 'center') cx = x - (ln.reduce((s, k) => s + k.w + sp, -sp)) / 2; for (const k of ln) { g.font = F(k.acc); g.fillStyle = k.acc ? C.cam : C.ink; g.fillText(k.t, cx, y + i * size * 1.16); cx += k.w + sp; } });
+    if (dry) return lines.length;
+    lines.forEach((ln, i) => { let cx = x; if (align === 'center') cx = x - (ln.reduce((s, k) => s + k.w + sp, -sp)) / 2; for (const k of ln) { g.font = F(k.acc); g.fillStyle = k.acc ? C.cam : C.ink; g.fillText(k.t, cx, y + i * size * 1.2); cx += k.w + sp; } });
     return lines.length;
   }
   function drawQR(x, y, size) { const m = size / (QN + 2); g.fillStyle = '#fff'; g.fillRect(x, y, size, size); g.fillStyle = C.ink; for (let r = 0; r < QN; r++) for (let c = 0; c < QN; c++) if (qr.isDark(r, c)) g.fillRect(x + (c + 1) * m, y + (r + 1) * m, m + .4, m + .4); }
@@ -282,16 +288,17 @@ async function startHost() {
       const s = (o.small ? 12 : 18) + Math.sin(T * 6) * 3; g.fillStyle = C.ink; g.fillRect(px - s / 2 - 3, py - s / 2 - 3, s + 6, s + 6); g.fillStyle = C.cam; g.fillRect(px - s / 2, py - s / 2, s, s);
     } else if (!o.small) tx('waiting for the first sliders…', x + w / 2, y + h / 2 - 16, { a: 'center', s: 20, c: C.mid });
   }
-  function header(r) { const w = tx(CONFIG.org, 80, 84, { w: 700, s: 20, ls: 3, c: C.cam }); tx('/  ' + r.title.toUpperCase(), 80 + w + 24, 84, { w: 700, s: 20, ls: 3, c: C.dark }); rich(r.q, 80, 176, 1500, 58); }
+  function header(r) { const w = tx(CONFIG.org, 80, 84, { w: 700, s: 20, ls: 3, c: C.cam }); tx('/  ' + r.title.toUpperCase(), 80 + w + 24, 84, { w: 700, s: 20, ls: 3, c: C.dark });
+    let sz = 56; while (sz > 30 && rich(r.q, 80, 0, 1500, sz, null, true) > 2) sz -= 2; const n = rich(r.q, 80, 120 + sz, 1500, sz);
+    if (r.sub) tx(r.sub, 80, 120 + sz + (n - 1) * sz * 1.2 + 44, { s: 24, c: C.dark }); }
   function qrPanel() { card(1652, 36, 232, 300, C.paper); drawQR(1668, 52, 200); tx('JOIN · ' + room, 1768, 288, { a: 'center', w: 700, s: 24, ls: 2 }); tx(count() + ' in the room', 1768, 318, { a: 'center', s: 17, c: C.dark }); }
 
   /* ----- scenes ----- */
   function lobby() {
     tx(CONFIG.org, 120, 150, { w: 700, s: 24, ls: 4, c: C.cam });
     const parts = CONFIG.eventName.split(/(\*[^*]+\*)/).filter(Boolean); let y = 310;
-    for (const p of parts) { const acc = p[0] === '*'; tx((acc ? p.slice(1, -1) : p).trim(), 120, y, { f: SERIF, s: 124, it: acc, c: acc ? C.cam : C.ink, ls: -3 }); y += 142; }
-    tx('Scan the code. Pick a critter. Slide your opinion.', 120, y - 40, { s: 28, c: C.dark });
-    tx('No app, no login  ·  ' + showUrl, 120, y + 8, { s: 22, c: C.mid });
+    for (const p of parts) { const acc = p[0] === '*'; tx((acc ? p.slice(1, -1) : p).trim(), 120, y, { f: SERIF, s: 112, c: acc ? C.cam : C.ink, ls: -4 }); y += 138; }
+    tx(showUrl, 120, y - 36, { s: 28, w: 700, c: C.dark });
     // sun, after the hero illustration's radiating lines
     g.save(); g.translate(1150, 170); g.fillStyle = C.camE; for (let i = 0; i < 12; i++) { g.rotate(Math.PI / 6); g.fillRect(52 + Math.sin(T * 2 + i) * 5, -3, 26, 6); } g.fillStyle = C.gold; g.fillRect(-32, -32, 64, 64); g.fillStyle = C.ink; g.lineWidth = 4; g.strokeStyle = C.ink; g.strokeRect(-32, -32, 64, 64); g.restore();
     card(1340, 110, 460, 560, C.paper, 12); drawQR(1360, 130, 420); tx('ROOM ' + room, 1570, 606, { a: 'center', w: 700, s: 40, ls: 8 }); tx(count() + ' in the room', 1570, 646, { a: 'center', s: 22, c: C.dark });
@@ -356,10 +363,9 @@ async function startHost() {
     crowd(r.key, X0, X1, GY, 3, 100, 4);
     if (count() - n > 0) tx((count() - n) + ' still thinking', 1840, 1066, { a: 'right', s: 16, c: C.mid });
     // the area right of the graph: who's talking + marks legend
-    card(1640, 370, 244, 430, C.paper, 6); tx('HOST KEYS', 1662, 408, { s: 14, w: 700, ls: 2, c: C.dark });
-    [['1', 'sceptic speaks'], ['2', 'pro speaks'], ['M', 'drop a marker'], ['→', 'next round']].forEach((k, i) => { g.fillStyle = C.ink; g.fillRect(1662, 428 + i * 44, 30, 30); tx(k[0], 1677, 450 + i * 44, { a: 'center', s: 16, w: 700, c: '#fff' }); tx(k[1], 1704, 450 + i * 44, { s: 15, c: C.dark }); });
+    card(1640, 370, 244, 300, C.paper, 6); tx('HOST KEYS', 1662, 408, { s: 14, w: 700, ls: 2, c: C.dark });
+    [['1', 'sceptic speaks'], ['2', 'pro speaks'], ['M', 'flag + initials'], ['→', 'next round']].forEach((k, i) => { g.fillStyle = C.ink; g.fillRect(1662, 428 + i * 44, 30, 30); tx(k[0], 1677, 450 + i * 44, { a: 'center', s: 16, w: 700, c: '#fff' }); tx(k[1], 1704, 450 + i * 44, { s: 15, c: C.dark }); });
     const ms = H.marks[r.key] || []; tx(ms.length + ' marker' + (ms.length === 1 ? '' : 's') + ' so far', 1662, 640, { s: 15, c: C.mid });
-    tx('Slide whenever', 1662, 716, { s: 17, w: 700, c: C.cam }); tx('an argument lands.', 1662, 742, { s: 17, w: 700, c: C.cam }); tx('Slide back if not.', 1662, 768, { s: 17, c: C.dark });
   }
   function summary() {
     tx(CONFIG.org, 80, 84, { w: 700, s: 20, ls: 3, c: C.cam }); rich('How the room *moved*', 80, 160, 1400, 64);
@@ -368,7 +374,7 @@ async function startHost() {
     card(80, 200, 900, 590, C.cream);
     if (after) {
       const kb = before ? before.key : after.key, ka = after.key, k = before ? ease(clamp((cyc - .2) / .35, 0, 1)) : 1, X0 = 140, X1 = 920, GY = 600, xv = v => X0 + (X1 - X0) * v / WMAX;
-      tx(plain(after.q).replace(/^So,\s*/i, '').replace(/^./, c => c.toUpperCase()), 110, 252, { f: SERIF, s: 30 });
+      tx(plain(after.q).replace(/^So,\s*/i, '').replace(/^./, c => c.toUpperCase()), 110, 250, { f: SERIF, s: 21 });
       if (before) { const lab = k < .5 ? 'BEFORE' : 'AFTER'; g.fillStyle = k < .5 ? C.dark : C.cam; g.fillRect(790, 222, 160, 40); tx(lab, 870, 250, { a: 'center', w: 700, s: 20, ls: 3, c: '#fff' }); }
       g.fillStyle = C.ink; g.fillRect(X0 - 30, GY, X1 - X0 + 60, 4); for (let y = 0; y <= 8; y++) { g.fillRect(xv(y * 12) - 1, GY, 3, 12); tx(y === 8 ? "'35+" : "'" + (27 + y), xv(y * 12), GY + 36, { a: 'center', s: 17, w: 700 }); }
       const ps = Object.values(H.players).filter(p => p.v[ka] != null || p.v[kb] != null).sort((a, b) => a.j - b.j), placed = [];
@@ -378,26 +384,26 @@ async function startHost() {
       if (vb.length && va.length) { const mb = quant(vb, .5), ma = quant(va, .5), d = Math.round(ma - mb);
         if (before) { g.fillStyle = C.mid; g.fillRect(xv(mb) - 2, GY + 44, 4, 26); g.fillStyle = C.cam; g.fillRect(xv(lerp(mb, ma, k)) - 4, GY + 44, 8, 26); }
         tx(before ? 'ROOM MEDIAN' : 'ROOM MEDIAN', 110, 706, { s: 15, w: 700, ls: 2, c: C.dark });
-        tx(before ? whenLabel(mb) + '  →  ' + whenLabel(ma) : whenLabel(ma), 110, 756, { f: SERIF, s: 42 });
+        tx(before ? whenLabel(mb) + '  →  ' + whenLabel(ma) : whenLabel(ma), 110, 756, { f: SERIF, s: 36 });
         if (before) tx(d === 0 ? 'did not move' : Math.abs(d) + ' month' + (Math.abs(d) === 1 ? '' : 's') + (d > 0 ? ' later' : ' sooner'), 950, 756, { a: 'right', s: 24, w: 700, c: C.cam });
       } else tx('no forecasts recorded yet', 530, 720, { a: 'center', s: 22, c: C.mid });
     }
     const lr = R.filter(r => r.type === 'lean'), ph = lr.length ? (590 - (lr.length - 1) * 16) / lr.length : 0;
-    lr.forEach((r, i) => { const y = 200 + i * (ph + 16), hs = H.hist[r.key] || []; card(1020, y, 820, ph, C.cream);
-      tx(r.title.toUpperCase(), 1044, y + 32, { s: 15, w: 700, ls: 2, c: C.cam });
-      graph(1050, y + 48, 470, ph - 68, r.key, { max: 100, band: true, marks: true, mid: true, small: true, upto: Math.min(1, cyc * 1.5), minT: 30 });
+    lr.forEach((r, i) => { const y = 200 + i * (ph + 16), hs = H.hist[r.key] || [], cp = ph < 170, o1 = cp ? 56 : 62, o2 = cp ? 90 : 106, o3 = cp ? 116 : 142; card(1020, y, 820, ph, C.cream);
+      tx(r.title.toUpperCase(), 1044, y + 30, { s: 15, w: 700, ls: 2, c: C.cam });
+      graph(1050, y + 44, 470, ph - 60, r.key, { max: 100, band: true, marks: true, mid: true, small: true, upto: Math.min(1, cyc * 1.5), minT: 30 });
       if (hs.length > 1) { const s = hs[0].m, e = hs[hs.length - 1].m, F = m => Math.abs(m - 50) < 2 ? 'even' : m < 50 ? '◀ ' + Math.round((50 - m) * 2) : Math.round((m - 50) * 2) + ' ▶';
-        tx('START  →  END', 1560, y + 62, { s: 14, w: 700, ls: 2, c: C.dark }); tx(F(s) + '  →  ' + F(e), 1560, y + 106, { s: 28, w: 700 });
-        const d = e - s; tx(Math.abs(d) < 3 ? 'Barely budged' : 'Swung to “' + (d < 0 ? r.left : r.right) + '”', 1560, y + 142, { s: 17, w: 700, c: Math.abs(d) < 3 ? C.dark : d < 0 ? C.green : C.cam });
-      } else tx('not played', 1560, y + 100, { s: 20, c: C.mid }); });
+        tx('START  →  END', 1560, y + o1, { s: 14, w: 700, ls: 2, c: C.dark }); tx(F(s) + ' → ' + F(e), 1560, y + o2, { s: cp ? 24 : 28, w: 700 });
+        const d = e - s; tx(Math.abs(d) < 3 ? 'Barely budged' : 'Swung to “' + (d < 0 ? r.left : r.right) + '”', 1560, y + o3, { s: 16, w: 700, c: Math.abs(d) < 3 ? C.dark : d < 0 ? C.green : C.cam });
+      } else tx('not played', 1560, y + o2, { s: 20, c: C.mid }); });
     const P = Object.values(H.players), lk = lr.map(r => r.key), mvOf = p => lk.reduce((s, k) => s + (p.mv[k] || 0), 0), top = (arr, f) => arr.length ? arr.reduce((a, b) => f(b) > f(a) ? b : a) : null;
     const voted = P.filter(p => lk.some(k => p.v[k] != null)), both = before ? P.filter(p => p.v[before.key] != null && p.v[after.key] != null) : [];
     const flip = top(voted, mvOf), rock = top(voted, p => -mvOf(p)), mind = top(both, p => Math.abs(p.v[after.key] - p.v[before.key])), hype = top(P.filter(p => p.em), p => p.em);
     const aw = [['FLIP-FLOPPER', flip, flip && Math.round(mvOf(flip)) + ' points of sliding', 'wide'], ['THE ROCK', rock && rock !== flip ? rock : null, rock && Math.round(mvOf(rock)) + ' points. Immovable.', 'sleepy'],
       ['BIGGEST RETHINK', mind && mind.v[after.key] !== mind.v[before.key] ? mind : null, mind && Math.abs(mind.v[after.key] - mind.v[before.key]) + ' months ' + (mind.v[after.key] > mind.v[before.key] ? 'later' : 'sooner'), 'dizzy'], ['HYPE MACHINE', hype, hype && hype.em + ' emotes', 'happy']];
     aw.forEach((w, i) => { const x = 80 + i * 445, y = 830; card(x, y, 425, 200, C.paper); tx(w[0], x + 150, y + 52, { s: 16, w: 700, ls: 2, c: C.cam });
-      if (w[1]) { drawOrb(g, x + 78, y + 160, 6, { c: w[1].c, h: w[1].h, face: w[3], hop: Math.abs(Math.sin(T * 5 + i)) * 1.5 }); tx(w[1].n, x + 150, y + 108, { f: SERIF, s: 36 }); tx(w[2], x + 150, y + 146, { s: 16, c: C.dark }); }
-      else { drawOrb(g, x + 78, y + 160, 6, { c: 7, face: 'sleepy', alpha: .4 }); tx('nobody yet', x + 150, y + 108, { f: SERIF, s: 30, c: C.mid }); } });
+      if (w[1]) { drawOrb(g, x + 78, y + 160, 6, { c: w[1].c, h: w[1].h, face: w[3], hop: Math.abs(Math.sin(T * 5 + i)) * 1.5 }); tx(w[1].n, x + 150, y + 106, { f: SERIF, s: 28 }); tx(w[2], x + 150, y + 146, { s: 16, c: C.dark }); }
+      else { drawOrb(g, x + 78, y + 160, 6, { c: 7, face: 'sleepy', alpha: .4 }); tx('nobody yet', x + 150, y + 106, { f: SERIF, s: 26, c: C.mid }); } });
   }
 
   const bgc = document.createElement('canvas'); bgc.width = 1920; bgc.height = 1080; { const b = bgc.getContext('2d'); b.fillStyle = C.paper; b.fillRect(0, 0, 1920, 1080); b.fillStyle = C.light; for (let y = 30; y < 1080; y += 60) for (let x = 30; x < 1920; x += 60) b.fillRect(x, y, 3, 3); }
@@ -495,7 +501,7 @@ async function startPhone() {
       const bump = first || (w ? (prev / 12 | 0) !== (v / 12 | 0) : (prev < 50) !== (v < 50) || (Math.abs(prev - 50) < 40) !== (Math.abs(v - 50) < 40));
       if (bump && navigator.vibrate) navigator.vibrate(8); paint(bump); if (ch || first) sendVote(k, v); },
       nv => { if (me.first[k] == null) { me.first[k] = nv; saveMe(); } sendVote(k, nv); }, was);
-    card.append(el('div', { class: 'eyebrow' }, r.title), el('div', { class: 'q' }, richDom(r.q)), oc.can, big, flav, sl.el,
+    card.append(el('div', { class: 'eyebrow' }, r.title), el('div', { class: 'q' }, richDom(r.q)), r.sub ? el('div', { class: 'qsub' }, r.sub) : '', oc.can, big, flav, sl.el,
       w ? el('div', { class: 'ticks' }, ["'27", "'28", "'29", "'30", "'31", "'32", "'33", "'34", "'35+"].map(t => el('span', {}, t))) : el('div', { class: 'ends' }, el('span', {}, '◀ ' + r.left), el('span', {}, r.right + ' ▶')),
       el('div', { class: 'nudge' }, el('button', { class: 'btn', onclick: () => sl.nudge(-1) }, w ? '− month' : '◀ nudge'), el('button', { class: 'btn', onclick: () => sl.nudge(1) }, w ? '+ month' : 'nudge ▶')),
       was != null ? el('div', { class: 'note', style: 'text-align:center' }, 'The faint line is your first answer: ' + whenLabel(was)) : el('div', { class: 'note', style: 'text-align:center' }, 'You can change this any time. The big screen updates live.'));
